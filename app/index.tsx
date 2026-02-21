@@ -16,11 +16,19 @@ export default function Index() {
       <Text>Edit app/index.tsx to edit this screen.</Text>
       <Button
         title="User Auth Page"
-        onPress={() => router.push("/user-auth" as Href)}
+        onPress={() => router.push("/user-auth-page" as Href)}
       />
       <Button
         title="User Account Page"
-        onPress={() => router.push("/user-account" as Href)}
+        onPress={() => router.push("/user-account-page" as Href)}
+      />
+      <Button
+        title="Camera Page"
+        onPress={() => router.push("/camera-page" as Href)}
+      />
+      <Button
+        title="Marketplace Page"
+        onPress={() => router.push("/marketplace-page" as Href)}
       />
     </View>
   );
