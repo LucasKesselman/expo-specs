@@ -1,5 +1,5 @@
 import { Button, ButtonText } from "@/components/ui/button";
-import { type Href, useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import { Text, View } from "react-native";
 
 export default function Index() {
@@ -14,7 +14,7 @@ export default function Index() {
         gap: 16,
       }}
     >
-      <Text>Edit app/index.tsx to edit this screen.</Text>
+      <Text>🏚 HomePage</Text>
       <Button onPress={() => router.push("/user-auth-page" as Href)}>
         <ButtonText>User Auth Page</ButtonText>
       </Button>
