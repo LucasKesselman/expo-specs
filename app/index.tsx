@@ -1,5 +1,6 @@
+import { Button, ButtonText } from "@/components/ui/button";
 import { type Href, useRouter } from "expo-router";
-import { Button, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
 export default function Index() {
   const router = useRouter();
@@ -14,22 +15,18 @@ export default function Index() {
       }}
     >
       <Text>Edit app/index.tsx to edit this screen.</Text>
-      <Button
-        title="User Auth Page"
-        onPress={() => router.push("/user-auth-page" as Href)}
-      />
-      <Button
-        title="User Account Page"
-        onPress={() => router.push("/user-account-page" as Href)}
-      />
-      <Button
-        title="Camera Page"
-        onPress={() => router.push("/camera-page" as Href)}
-      />
-      <Button
-        title="Marketplace Page"
-        onPress={() => router.push("/marketplace-page" as Href)}
-      />
+      <Button onPress={() => router.push("/user-auth-page" as Href)}>
+        <ButtonText>User Auth Page</ButtonText>
+      </Button>
+      <Button onPress={() => router.push("/user-account-page" as Href)}>
+        <ButtonText>User Account Page</ButtonText>
+      </Button>
+      <Button onPress={() => router.push("/camera-page" as Href)}>
+        <ButtonText>Camera Page</ButtonText>
+      </Button>
+      <Button onPress={() => router.push("/marketplace-page" as Href)}>
+        <ButtonText>Marketplace Page</ButtonText>
+      </Button>
     </View>
   );
 }
