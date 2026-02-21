@@ -25,6 +25,12 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
+## Firebase & auth setup
+
+1. **Install Firebase** – Done. (`npx expo install firebase` already run.)
+2. **Add your Firebase credentials** – Paste your Web app config into `lib/firebase.config.ts` (see `lib/firebase.config.example.ts` for the shape). Test the connection by logging in on the User Auth page.
+3. **Sign in with Google** – Pinned for later. The "Sign in with Google" button opens a modal with the title *Sign In with Google is a work in progress* and step-by-step instructions for enabling it when you’re ready.
+
 ## Get a fresh project
 
 When you're ready, run:
