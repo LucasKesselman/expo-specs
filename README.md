@@ -1,51 +1,50 @@
-# expo-specs
+# Welcome to your Expo app 👋
 
-## Goal
+This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
-This app is built as a cross-platform mobile application using React Native and Expo, with Gluestack UI for the interface, type-safe TypeScript, and Firebase for backend, auth, and user data.
+## Get started
 
----
+1. Install dependencies
 
-## Tech Stack
+   ```bash
+   npm install
+   ```
 
-### React Native
+2. Start the app
 
-- Cross-platform mobile app (iOS and Android) from a single codebase
-- Native components and APIs via the React Native runtime
-- Hot reload and fast refresh for development
+   ```bash
+   npx expo start
+   ```
 
-### Expo with Expo Router
+In the output, you'll find options to open the app in a
 
-- Managed workflow and tooling (build, OTA updates, EAS)
-- File-based routing with Expo Router for screens and navigation
-- Deep linking and type-safe navigation
-- Simple project setup and consistent dev experience
+- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
+- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
+- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
+- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
 
-### Gluestack UI
+You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
-- Universal components that work on React Native and web (same API)
-- Copy-paste style: add only the components you need; you own and can edit the code
-- Styling with Tailwind CSS via NativeWind—flexible and familiar if you know Tailwind
-- TypeScript and accessibility built in; no vendor lock-in
-- Actively maintained (v3); similar philosophy to shadcn/ui but for mobile + web
+## Get a fresh project
 
-### TypeScript
+When you're ready, run:
 
-- Static types for components, hooks, and API calls
-- Better editor support (autocomplete, refactors)
-- Fewer runtime errors and clearer contracts
-- Typed Firebase and app models
+```bash
+npm run reset-project
+```
 
-### Firebase Firestore
+This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
 
-- NoSQL document database in the cloud
-- Real-time listeners for live data
-- Offline support and sync
-- Scalable backend without managing servers
+## Learn more
 
-### Firebase Auth & User Tables
+To learn more about developing your project with Expo, look at the following resources:
 
-- Sign-in (email/password, Google, Apple, etc.)
-- User tables in Firestore for profiles and app-specific data
-- Secure rules to protect user data
-- Session and token handling for authenticated requests
+- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
+- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+
+## Join the community
+
+Join our community of developers creating universal apps.
+
+- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
+- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
