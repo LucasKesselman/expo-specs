@@ -2,7 +2,7 @@
 
 ## Goal
 
-This app is built as a cross-platform mobile application using React Native and Expo, with a Material Design UI, type-safe TypeScript, and Firebase for backend, auth, and user data.
+This app is built as a cross-platform mobile application using React Native and Expo, with Gluestack UI for the interface, type-safe TypeScript, and Firebase for backend, auth, and user data.
 
 ---
 
@@ -21,12 +21,13 @@ This app is built as a cross-platform mobile application using React Native and 
 - Deep linking and type-safe navigation
 - Simple project setup and consistent dev experience
 
-### React Native Paper
+### Gluestack UI
 
-- Material Design 3 components (buttons, cards, inputs, etc.)
-- Theming (light/dark, custom colors)
-- Accessibility built in
-- Consistent, polished UI with minimal custom styling
+- Universal components that work on React Native and web (same API)
+- Copy-paste style: add only the components you need; you own and can edit the code
+- Styling with Tailwind CSS via NativeWind—flexible and familiar if you know Tailwind
+- TypeScript and accessibility built in; no vendor lock-in
+- Actively maintained (v3); similar philosophy to shadcn/ui but for mobile + web
 
 ### TypeScript
 
