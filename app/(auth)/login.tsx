@@ -21,12 +21,13 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 type Mode = "login" | "signup" | "forgot";
 
-// Center + card layout (reference: Gluestack Center + VStack with rounded border)
-const CENTER_STYLE = {
-  flex: 1,
-  justifyContent: "center" as const,
+// Top-aligned layout so content doesn't jump when keyboard opens or on scroll
+const SCROLL_CONTENT_STYLE = {
+  flexGrow: 1,
+  paddingTop: 48,
+  paddingBottom: 48,
+  paddingHorizontal: 24,
   alignItems: "center" as const,
-  padding: 24,
 };
 
 const CARD_STYLE = {
@@ -35,8 +36,8 @@ const CARD_STYLE = {
   borderWidth: 1,
   borderColor: "#e2e8f0",
   padding: 24,
+  width: "100%" as const,
   maxWidth: 336,
-  alignSelf: "center" as const,
 };
 
 const HEADING_STYLE = {
@@ -146,8 +147,9 @@ export default function LoginScreen() {
       keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
     >
       <ScrollView
-        contentContainerStyle={[CENTER_STYLE, { paddingBottom: 48 }]}
+        contentContainerStyle={SCROLL_CONTENT_STYLE}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
       >
         <View style={CARD_STYLE}>
