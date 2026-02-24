@@ -1,6 +1,6 @@
 import { Text, View } from "react-native";
 
-export default function UserAccountPage() {
+export default function MarketplaceTab() {
   return (
     <View
       style={{
@@ -9,7 +9,7 @@ export default function UserAccountPage() {
         alignItems: "center",
       }}
     >
-      <Text>This is the user account page</Text>
+      <Text>This is the marketplace page</Text>
     </View>
   );
 }

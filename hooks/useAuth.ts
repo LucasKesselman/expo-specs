@@ -4,6 +4,7 @@ import {
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
   signInWithCredential,
+  signOut,
   GoogleAuthProvider,
   onAuthStateChanged,
   type User,
@@ -92,5 +93,15 @@ export function useAuth() {
     }
   };
 
-  return { login, signUp, resetPassword, signInWithGoogle, loading, error, clearError };
+  const logout = async () => {
+    setError(null);
+    try {
+      await signOut(auth);
+    } catch (err) {
+      setError((err as AuthError).message ?? "Logout failed.");
+      throw err;
+    }
+  };
+
+  return { login, signUp, resetPassword, signInWithGoogle, logout, loading, error, clearError };
 }

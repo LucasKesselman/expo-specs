@@ -1,32 +1,5 @@
-import { Button, ButtonText } from "@/components/ui/button";
-import { useRouter, type Href } from "expo-router";
-import { Text, View } from "react-native";
+import { Redirect, type Href } from "expo-router";
 
 export default function Index() {
-  const router = useRouter();
-
-  return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-        gap: 16,
-      }}
-    >
-      <Text>🏚 HomePage</Text>
-      <Button onPress={() => router.push("/user-auth-page" as Href)}>
-        <ButtonText>User Auth Page</ButtonText>
-      </Button>
-      <Button onPress={() => router.push("/user-account-page" as Href)}>
-        <ButtonText>User Account Page</ButtonText>
-      </Button>
-      <Button onPress={() => router.push("/camera-page" as Href)}>
-        <ButtonText>Camera Page</ButtonText>
-      </Button>
-      <Button onPress={() => router.push("/marketplace-page" as Href)}>
-        <ButtonText>Marketplace Page</ButtonText>
-      </Button>
-    </View>
-  );
+  return <Redirect href={"/(auth)/landing-page" as Href} />;
 }
