@@ -1,8 +1,8 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
-// getReactNativePersistence is only in the React Native build of @firebase/auth (used by Metro at runtime)
-// @ts-expect-error - not in default type definitions
+// getReactNativePersistence exists in the RN build of @firebase/auth (see dist/rn/index.rn.d.ts)
+// @ts-expect-error - not in the default auth-public.d.ts
 import { initializeAuth, getReactNativePersistence } from "@firebase/auth";
 import ReactNativeAsyncStorage from "@react-native-async-storage/async-storage";
 import { firebaseConfig } from "./firebase.config";

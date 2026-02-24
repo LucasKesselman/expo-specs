@@ -1,16 +1,23 @@
 import { Button, ButtonText } from "@/components/ui/button";
+import {
+  FormControl,
+  FormControlLabel,
+  FormControlLabelText,
+} from "@/components/ui/form-control";
 import { useAuth, useAuthState } from "@/hooks/useAuth";
 import { useSavedDesigns } from "@/hooks/useSavedDesigns";
+import { useTheme } from "@/contexts/ThemeContext";
 import type { SavedDesignWithId } from "@/lib/savedDesigns";
 import { useFocusEffect } from "@react-navigation/native";
 import { type Href, useRouter } from "expo-router";
 import type { User } from "firebase/auth";
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Image,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from "react-native";
@@ -120,7 +127,6 @@ function SavedDesignsSection({
   remove: (id: string) => void;
   removingId: string | null;
 }) {
-
   if (loading) {
     return (
       <View style={styles.savedSection}>
@@ -201,6 +207,49 @@ function SavedDesignsSection({
   );
 }
 
+function UserSettingsSection() {
+  const { theme, setTheme } = useTheme();
+  const [darkMode, setDarkMode] = useState(theme === "dark");
+
+  useEffect(() => {
+    setDarkMode(theme === "dark");
+  }, [theme]);
+
+  const handleApply = () => {
+    setTheme(darkMode ? "dark" : "light");
+  };
+
+  return (
+    <View style={styles.settingsSection}>
+      <Text style={styles.settingsSectionTitle}>User settings</Text>
+      <View style={styles.settingsCard}>
+        <FormControl>
+          <View style={styles.settingRow}>
+            <FormControlLabel>
+              <FormControlLabelText>Dark mode</FormControlLabelText>
+            </FormControlLabel>
+            <Switch
+              value={darkMode}
+              onValueChange={setDarkMode}
+              trackColor={{ false: "#cbd5e1", true: "#94a3b8" }}
+              thumbColor={darkMode ? "#334155" : "#f8fafc"}
+            />
+          </View>
+        </FormControl>
+        <Button
+          size="sm"
+          variant="solid"
+          action="primary"
+          onPress={handleApply}
+          style={styles.applyButton}
+        >
+          <ButtonText>Apply changes</ButtonText>
+        </Button>
+      </View>
+    </View>
+  );
+}
+
 export default function AccountTab() {
   const router = useRouter();
   const { logout } = useAuth();
@@ -250,6 +299,7 @@ export default function AccountTab() {
         {user ? (
           <>
             <SessionInfo user={user} />
+            <UserSettingsSection />
             <SavedDesignsSection
               userId={user.uid}
               savedDesigns={savedDesigns}
@@ -291,6 +341,28 @@ export default function AccountTab() {
 }
 
 const styles = StyleSheet.create({
+  settingsSection: { marginHorizontal: 20, marginBottom: 24 },
+  settingsSectionTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#475569",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  settingsCard: {
+    backgroundColor: "#f1f5f9",
+    borderRadius: 12,
+    padding: 16,
+  },
+  settingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  applyButton: {
+    marginTop: 16,
+  },
   savedSection: { marginHorizontal: 20, marginBottom: 24 },
   savedSectionTitle: {
     fontSize: 13,
