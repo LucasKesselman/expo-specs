@@ -1,9 +1,23 @@
 import { Button, ButtonText } from "@/components/ui/button";
+import { useAuthState } from "@/hooks/useAuth";
 import { type Href, useRouter } from "expo-router";
-import { Text, View } from "react-native";
+import { useEffect, useRef } from "react";
+import { Alert, Text, View } from "react-native";
 
 export default function LandingPage() {
   const router = useRouter();
+  const user = useAuthState();
+  const hasShownAlert = useRef(false);
+
+  useEffect(() => {
+    if (!user || hasShownAlert.current) return;
+    hasShownAlert.current = true;
+    Alert.alert(
+      "Already logged in",
+      "You are already logged in.",
+      [{ text: "OK", onPress: () => router.replace("/(tabs)/account" as Href) }]
+    );
+  }, [user, router]);
 
   return (
     <View

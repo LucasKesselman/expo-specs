@@ -8,7 +8,7 @@ import {
 import { Input, InputField, InputSlot } from "@/components/ui/input";
 import { useAuth, useAuthState } from "@/hooks/useAuth";
 import { type Href, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -64,12 +64,23 @@ export default function LoginScreen() {
   const [forgotSent, setForgotSent] = useState(false);
   const [showGoogleModal, setShowGoogleModal] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const hasCompletedLoginThisSession = useRef(false);
+  const hasShownAlreadyLoggedInAlert = useRef(false);
 
-  // Firebase is source of truth: when user is set, redirect to tabs
+  // Sticky session: already logged in → alert and go to account; fresh login → just go to account
   useEffect(() => {
-    if (user) {
-      router.replace("/(tabs)" as Href);
+    if (!user) return;
+    if (hasCompletedLoginThisSession.current) {
+      router.replace("/(tabs)/account" as Href);
+      return;
     }
+    if (hasShownAlreadyLoggedInAlert.current) return;
+    hasShownAlreadyLoggedInAlert.current = true;
+    Alert.alert(
+      "Already logged in",
+      "You are already logged in.",
+      [{ text: "OK", onPress: () => router.replace("/(tabs)/account" as Href) }]
+    );
   }, [user, router]);
 
   // Show error alert when auth fails (Firebase error from useAuth)
@@ -115,10 +126,12 @@ export default function LoginScreen() {
     try {
       if (mode === "login") {
         await login(email.trim(), password);
+        hasCompletedLoginThisSession.current = true;
         Alert.alert("Success", "You're logged in.");
         // Redirect happens via useEffect when Firebase auth state updates
       } else {
         await signUp(email.trim(), password);
+        hasCompletedLoginThisSession.current = true;
         Alert.alert("Success", "Account created. You're logged in.");
         // Redirect happens via useEffect when Firebase auth state updates
       }

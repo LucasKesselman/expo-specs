@@ -31,6 +31,26 @@ You can start developing by editing the files inside the **app** directory. This
 2. **Add your Firebase credentials** – Paste your Web app config into `lib/firebase.config.ts` (see `lib/firebase.config.example.ts` for the shape). Test the connection by logging in on the User Auth page.
 3. **Sign in with Google** – Pinned for later. The "Sign in with Google" button opens a modal with the title *Sign In with Google is a work in progress* and step-by-step instructions for enabling it when you’re ready.
 
+## Firestore (saved designs)
+
+Firestore is used to store each user’s saved designs. If you haven’t already:
+
+1. **Create a Firestore database** – In [Firebase Console](https://console.firebase.google.com) → your project → **Build** → **Firestore Database** → **Create database** (start in test mode or production with rules).
+2. **Security rules (recommended)** – Restrict `users/{userId}/savedDesigns` so only the signed-in user can read/write their own documents. Example:
+
+   ```
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /users/{userId}/savedDesigns/{docId} {
+         allow read, write: if request.auth != null && request.auth.uid == userId;
+       }
+     }
+   }
+   ```
+
+Once the database exists and your app has the correct `projectId` in `lib/firebase.config.ts`, saving a design from the Marketplace will create documents under `users/<uid>/savedDesigns/`.
+
 ## Get a fresh project
 
 When you're ready, run:
