@@ -12,6 +12,10 @@ import {
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
+/**
+ * Subscribes to the current Firebase Auth user. Returns null when signed out.
+ * Use in screens that need to show user-specific UI or redirect when not logged in.
+ */
 export function useAuthState(): User | null {
   const [user, setUser] = useState<User | null>(null);
   useEffect(() => {
@@ -34,6 +38,10 @@ function getAuthErrorMessage(err: AuthError): string {
   return err.message || "An error occurred.";
 }
 
+/**
+ * Auth actions and state for login, signup, password reset, and Google sign-in.
+ * @returns {Object} login, signUp, resetPassword, signInWithGoogle, logout, loading, error, clearError
+ */
 export function useAuth() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

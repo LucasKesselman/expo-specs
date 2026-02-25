@@ -1,8 +1,8 @@
 'use client';
 import { vars } from 'nativewind';
 
-export const config = {
-  light: vars({
+/** Raw CSS var values for light theme. Exported for getThemeColors() in lib/themeColors.ts. */
+export const lightVars: Record<string, string> = {
     '--color-primary-0': '179 179 179',
     '--color-primary-50': '153 153 153',
     '--color-primary-100': '128 128 128',
@@ -153,36 +153,39 @@ export const config = {
     '--color-indicator-primary': '55 55 55',
     '--color-indicator-info': '83 153 236',
     '--color-indicator-error': '185 28 28',
-  }),
-  dark: vars({
-    '--color-primary-0': '166 166 166',
-    '--color-primary-50': '175 175 175',
-    '--color-primary-100': '186 186 186',
-    '--color-primary-200': '197 197 197',
-    '--color-primary-300': '212 212 212',
-    '--color-primary-400': '221 221 221',
-    '--color-primary-500': '230 230 230',
-    '--color-primary-600': '240 240 240',
-    '--color-primary-700': '250 250 250',
-    '--color-primary-800': '253 253 253',
-    '--color-primary-900': '254 249 249',
-    '--color-primary-950': '253 252 252',
+};
 
-    /* Secondary  */
-    '--color-secondary-0': '20 20 20',
-    '--color-secondary-50': '23 23 23',
-    '--color-secondary-100': '31 31 31',
-    '--color-secondary-200': '39 39 39',
-    '--color-secondary-300': '44 44 44',
-    '--color-secondary-400': '56 57 57',
-    '--color-secondary-500': '63 64 64',
-    '--color-secondary-600': '86 86 86',
-    '--color-secondary-700': '110 110 110',
-    '--color-secondary-800': '135 135 135',
-    '--color-secondary-900': '150 150 150',
-    '--color-secondary-950': '164 164 164',
+/** iOS-inspired dark grey palette. Exported for getThemeColors() in lib/themeColors.ts. */
+export const darkVars: Record<string, string> = {
+    /* Primary (accent: iOS blue #0A84FF for buttons, links, FAB) */
+    '--color-primary-0': '199 218 255',
+    '--color-primary-50': '153 197 255',
+    '--color-primary-100': '102 176 255',
+    '--color-primary-200': '51 155 255',
+    '--color-primary-300': '10 132 255',
+    '--color-primary-400': '10 132 255',
+    '--color-primary-500': '10 132 255',
+    '--color-primary-600': '8 110 212',
+    '--color-primary-700': '6 88 170',
+    '--color-primary-800': '4 66 127',
+    '--color-primary-900': '2 44 85',
+    '--color-primary-950': '0 22 42',
 
-    /* Tertiary */
+    /* Secondary (elevated surfaces: #2C2C2E, #3A3A3C) */
+    '--color-secondary-0': '28 28 30',
+    '--color-secondary-50': '35 35 38',
+    '--color-secondary-100': '44 44 46',
+    '--color-secondary-200': '58 58 60',
+    '--color-secondary-300': '72 72 74',
+    '--color-secondary-400': '99 99 102',
+    '--color-secondary-500': '110 110 110',
+    '--color-secondary-600': '135 135 135',
+    '--color-secondary-700': '150 150 150',
+    '--color-secondary-800': '164 164 164',
+    '--color-secondary-900': '186 186 186',
+    '--color-secondary-950': '212 212 212',
+
+    /* Tertiary (warm accent) */
     '--color-tertiary-0': '84 49 18',
     '--color-tertiary-50': '108 61 19',
     '--color-tertiary-100': '130 73 23',
@@ -252,26 +255,26 @@ export const config = {
     '--color-info-900': '199 235 252',
     '--color-info-950': '236 248 254',
 
-    /* Typography */
+    /* Typography (crisp: primary 250+, secondary ~180, tertiary ~142) */
     '--color-typography-0': '23 23 23',
     '--color-typography-50': '38 38 39',
     '--color-typography-100': '64 64 64',
     '--color-typography-200': '82 82 82',
     '--color-typography-300': '115 115 115',
-    '--color-typography-400': '140 140 140',
+    '--color-typography-400': '142 142 147',
     '--color-typography-500': '163 163 163',
     '--color-typography-600': '212 212 212',
-    '--color-typography-700': '219 219 220',
-    '--color-typography-800': '229 229 229',
-    '--color-typography-900': '245 245 245',
-    '--color-typography-950': '254 254 255',
+    '--color-typography-700': '229 229 229',
+    '--color-typography-800': '242 242 242',
+    '--color-typography-900': '250 250 250',
+    '--color-typography-950': '255 255 255',
 
-    /* Outline */
+    /* Outline (subtle grey 60–80) */
     '--color-outline-0': '26 23 23',
     '--color-outline-50': '39 38 36',
-    '--color-outline-100': '65 65 65',
-    '--color-outline-200': '83 82 82',
-    '--color-outline-300': '115 116 116',
+    '--color-outline-100': '58 58 60',
+    '--color-outline-200': '72 72 74',
+    '--color-outline-300': '99 99 102',
     '--color-outline-400': '140 141 141',
     '--color-outline-500': '165 163 163',
     '--color-outline-600': '211 211 211',
@@ -280,14 +283,14 @@ export const config = {
     '--color-outline-900': '243 243 243',
     '--color-outline-950': '253 254 254',
 
-    /* Background */
-    '--color-background-0': '18 18 18',
-    '--color-background-50': '39 38 37',
-    '--color-background-100': '65 64 64',
-    '--color-background-200': '83 82 82',
-    '--color-background-300': '116 116 116',
-    '--color-background-400': '142 142 142',
-    '--color-background-500': '162 163 163',
+    /* Background (base #121214, elevated #232326, #2C2C2E) */
+    '--color-background-0': '18 18 20',
+    '--color-background-50': '35 35 38',
+    '--color-background-100': '44 44 46',
+    '--color-background-200': '58 58 60',
+    '--color-background-300': '72 72 74',
+    '--color-background-400': '99 99 102',
+    '--color-background-500': '142 142 147',
     '--color-background-600': '213 212 212',
     '--color-background-700': '229 228 228',
     '--color-background-800': '242 241 241',
@@ -298,12 +301,16 @@ export const config = {
     '--color-background-error': '66 43 43',
     '--color-background-warning': '65 47 35',
     '--color-background-success': '28 43 33',
-    '--color-background-muted': '51 51 51',
+    '--color-background-muted': '44 44 46',
     '--color-background-info': '26 40 46',
 
-    /* Focus Ring Indicator  */
-    '--color-indicator-primary': '247 247 247',
+    /* Focus Ring Indicator */
+    '--color-indicator-primary': '10 132 255',
     '--color-indicator-info': '161 199 245',
     '--color-indicator-error': '232 70 69',
-  }),
+};
+
+export const config = {
+  light: vars(lightVars),
+  dark: vars(darkVars),
 };

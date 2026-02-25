@@ -6,12 +6,13 @@ import {
 } from "@/components/ui/form-control";
 import { useAuth, useAuthState } from "@/hooks/useAuth";
 import { useSavedDesigns } from "@/hooks/useSavedDesigns";
+import { useThemeColors } from "@/hooks/useThemeColors";
 import { useTheme } from "@/contexts/ThemeContext";
 import type { SavedDesignWithId } from "@/lib/savedDesigns";
 import { useFocusEffect } from "@react-navigation/native";
 import { type Href, useRouter } from "expo-router";
 import type { User } from "firebase/auth";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Image,
@@ -35,6 +36,7 @@ function formatAuthTime(isoString: string | undefined): string {
   }
 }
 
+/** Maps Firebase provider id to a short label for the UI. */
 function getProviderLabel(providerId: string): string {
   if (providerId === "password") return "Email / Password";
   if (providerId === "google.com") return "Google";
@@ -42,7 +44,13 @@ function getProviderLabel(providerId: string): string {
   return providerId;
 }
 
-function SessionInfo({ user }: { user: User }) {
+function SessionInfo({
+  user,
+  colors,
+}: {
+  user: User;
+  colors: Record<string, string>;
+}) {
   const { metadata, providerData } = user;
   const provider = providerData?.[0];
   const providerName = provider ? getProviderLabel(provider.providerId) : "—";
@@ -50,7 +58,7 @@ function SessionInfo({ user }: { user: User }) {
   return (
     <View
       style={{
-        backgroundColor: "#f1f5f9",
+        backgroundColor: colors.background100,
         borderRadius: 12,
         padding: 16,
         marginHorizontal: 20,
@@ -61,7 +69,7 @@ function SessionInfo({ user }: { user: User }) {
         style={{
           fontSize: 13,
           fontWeight: "600",
-          color: "#475569",
+          color: colors.typography400,
           marginBottom: 12,
           textTransform: "uppercase",
           letterSpacing: 0.5,
@@ -70,13 +78,14 @@ function SessionInfo({ user }: { user: User }) {
         Session info
       </Text>
       <View style={{ gap: 10 }}>
-        <InfoRow label="Email" value={user.email ?? "—"} />
-        <InfoRow label="Display name" value={user.displayName ?? "—"} />
-        <InfoRow label="User ID" value={user.uid} />
-        <InfoRow label="Signed in with" value={providerName} />
-        <InfoRow label="Last sign-in" value={formatAuthTime(metadata?.lastSignInTime)} />
-        <InfoRow label="Account created" value={formatAuthTime(metadata?.creationTime)} />
+        <InfoRow colors={colors} label="Email" value={user.email ?? "—"} />
+        <InfoRow colors={colors} label="Display name" value={user.displayName ?? "—"} />
+        <InfoRow colors={colors} label="User ID" value={user.uid} />
+        <InfoRow colors={colors} label="Signed in with" value={providerName} />
+        <InfoRow colors={colors} label="Last sign-in" value={formatAuthTime(metadata?.lastSignInTime)} />
+        <InfoRow colors={colors} label="Account created" value={formatAuthTime(metadata?.creationTime)} />
         <InfoRow
+          colors={colors}
           label="Email verified"
           value={user.emailVerified ? "Yes" : "No"}
         />
@@ -85,13 +94,21 @@ function SessionInfo({ user }: { user: User }) {
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({
+  label,
+  value,
+  colors,
+}: {
+  label: string;
+  value: string;
+  colors: Record<string, string>;
+}) {
   return (
     <View>
       <Text
         style={{
           fontSize: 11,
-          color: "#64748b",
+          color: colors.typography500,
           marginBottom: 2,
         }}
       >
@@ -101,7 +118,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
         selectable
         style={{
           fontSize: 15,
-          color: "#0f172a",
+          color: colors.typography950,
         }}
       >
         {value}
@@ -118,6 +135,7 @@ function SavedDesignsSection({
   refresh,
   remove,
   removingId,
+  styles,
 }: {
   userId: string;
   savedDesigns: SavedDesignWithId[];
@@ -126,6 +144,7 @@ function SavedDesignsSection({
   refresh: () => void;
   remove: (id: string) => void;
   removingId: string | null;
+  styles: ReturnType<typeof createAccountStyles>;
 }) {
   if (loading) {
     return (
@@ -207,7 +226,13 @@ function SavedDesignsSection({
   );
 }
 
-function UserSettingsSection() {
+function UserSettingsSection({
+  styles,
+  colors,
+}: {
+  styles: ReturnType<typeof createAccountStyles>;
+  colors: Record<string, string>;
+}) {
   const { theme, setTheme } = useTheme();
   const [darkMode, setDarkMode] = useState(theme === "dark");
 
@@ -231,8 +256,8 @@ function UserSettingsSection() {
             <Switch
               value={darkMode}
               onValueChange={setDarkMode}
-              trackColor={{ false: "#cbd5e1", true: "#94a3b8" }}
-              thumbColor={darkMode ? "#334155" : "#f8fafc"}
+              trackColor={{ false: colors.outline300, true: colors.typography400 }}
+              thumbColor={darkMode ? colors.background200 : colors.background50}
             />
           </View>
         </FormControl>
@@ -250,8 +275,107 @@ function UserSettingsSection() {
   );
 }
 
+function createAccountStyles(colors: Record<string, string>) {
+  return StyleSheet.create({
+    settingsSection: { marginHorizontal: 20, marginBottom: 24 },
+    settingsSectionTitle: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: colors.typography400,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      marginBottom: 6,
+    },
+    settingsCard: {
+      backgroundColor: colors.background100,
+      borderRadius: 12,
+      padding: 16,
+    },
+    settingRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    applyButton: {
+      marginTop: 16,
+    },
+    savedSection: { marginHorizontal: 20, marginBottom: 24 },
+    savedSectionTitle: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: colors.typography400,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      marginBottom: 6,
+    },
+    savedSectionSubtext: { fontSize: 14, color: colors.typography500, marginBottom: 12 },
+    savedSectionError: { fontSize: 14, color: colors.error500, marginBottom: 4 },
+    savedList: { flexDirection: "row", gap: 12, paddingVertical: 4 },
+    savedCard: {
+      width: 120,
+      backgroundColor: colors.secondary0,
+      borderRadius: 10,
+      overflow: "hidden",
+      paddingBottom: 8,
+      shadowColor: colors.typography0,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.06,
+      shadowRadius: 3,
+      elevation: 2,
+    },
+    savedCardImage: {
+      width: "100%",
+      aspectRatio: 1,
+      backgroundColor: colors.background100,
+      resizeMode: "cover",
+    },
+    savedCardName: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: colors.typography950,
+      marginHorizontal: 8,
+      marginTop: 6,
+    },
+    savedCardPrice: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: colors.primary500,
+      marginHorizontal: 8,
+      marginTop: 2,
+    },
+    savedCardButton: {
+      marginHorizontal: 8,
+      marginTop: 6,
+    },
+    pageTitle: {
+      fontSize: 24,
+      fontWeight: "600",
+      color: colors.typography950,
+      marginHorizontal: 20,
+      marginBottom: 20,
+    },
+    notSignedInBox: {
+      marginHorizontal: 20,
+      marginBottom: 24,
+      padding: 16,
+      backgroundColor: colors.backgroundwarning,
+      borderRadius: 12,
+    },
+    notSignedInText: {
+      fontSize: 15,
+      color: colors.warning800,
+    },
+    logoutWrap: {
+      alignItems: "center",
+      marginTop: 8,
+    },
+  });
+}
+
 export default function AccountTab() {
   const router = useRouter();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createAccountStyles(colors), [colors]);
   const { logout } = useAuth();
   const user = useAuthState();
   const { savedDesigns, loading, error, refresh, remove, removingId } = useSavedDesigns(
@@ -275,7 +399,7 @@ export default function AccountTab() {
   };
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: colors.background0 }}>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
@@ -285,21 +409,11 @@ export default function AccountTab() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Text
-          style={{
-            fontSize: 24,
-            fontWeight: "600",
-            color: "#0f172a",
-            marginHorizontal: 20,
-            marginBottom: 20,
-          }}
-        >
-          Account
-        </Text>
+        <Text style={styles.pageTitle}>Account</Text>
         {user ? (
           <>
-            <SessionInfo user={user} />
-            <UserSettingsSection />
+            <SessionInfo user={user} colors={colors} />
+            <UserSettingsSection styles={styles} colors={colors} />
             <SavedDesignsSection
               userId={user.uid}
               savedDesigns={savedDesigns}
@@ -308,29 +422,17 @@ export default function AccountTab() {
               refresh={refresh}
               remove={remove}
               removingId={removingId}
+              styles={styles}
             />
           </>
         ) : (
-          <View
-            style={{
-              marginHorizontal: 20,
-              marginBottom: 24,
-              padding: 16,
-              backgroundColor: "#fef3c7",
-              borderRadius: 12,
-            }}
-          >
-            <Text style={{ fontSize: 15, color: "#92400e" }}>
+          <View style={styles.notSignedInBox}>
+            <Text style={styles.notSignedInText}>
               Not signed in. Use the landing or login flow to sign in.
             </Text>
           </View>
         )}
-        <View
-          style={{
-            alignItems: "center",
-            marginTop: 8,
-          }}
-        >
+        <View style={styles.logoutWrap}>
           <Button variant="outline" action="secondary" onPress={handleLogout}>
             <ButtonText>Logout</ButtonText>
           </Button>
@@ -339,76 +441,3 @@ export default function AccountTab() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  settingsSection: { marginHorizontal: 20, marginBottom: 24 },
-  settingsSectionTitle: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#475569",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 6,
-  },
-  settingsCard: {
-    backgroundColor: "#f1f5f9",
-    borderRadius: 12,
-    padding: 16,
-  },
-  settingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  applyButton: {
-    marginTop: 16,
-  },
-  savedSection: { marginHorizontal: 20, marginBottom: 24 },
-  savedSectionTitle: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#475569",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 6,
-  },
-  savedSectionSubtext: { fontSize: 14, color: "#64748b", marginBottom: 12 },
-  savedSectionError: { fontSize: 14, color: "#b91c1c", marginBottom: 4 },
-  savedList: { flexDirection: "row", gap: 12, paddingVertical: 4 },
-  savedCard: {
-    width: 120,
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    overflow: "hidden",
-    paddingBottom: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  savedCardImage: {
-    width: "100%",
-    aspectRatio: 1,
-    backgroundColor: "#f1f5f9",
-    resizeMode: "cover",
-  },
-  savedCardName: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#0f172a",
-    marginHorizontal: 8,
-    marginTop: 6,
-  },
-  savedCardPrice: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#2563eb",
-    marginHorizontal: 8,
-    marginTop: 2,
-  },
-  savedCardButton: {
-    marginHorizontal: 8,
-    marginTop: 6,
-  },
-});

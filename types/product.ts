@@ -1,6 +1,6 @@
 /**
- * Design product type used in marketplace and when saving to Firestore.
- * Each product has a stable productId and can belong to multiple categories.
+ * Design product types for the marketplace and saved-designs flows.
+ * DesignProduct is the canonical shape for catalog items and saved designs.
  */
 export type ProductCategory =
   | "tees"
@@ -10,12 +10,19 @@ export type ProductCategory =
   | "bestseller"
   | "new";
 
+/**
+ * A design product (e.g. a tee) with stable id and display fields.
+ * Used in PRODUCTS catalog and when saving/loading from Firestore.
+ */
 export interface DesignProduct {
+  /** Stable id; use when saving to Firestore. */
   productId: string;
   name: string;
   description: string;
+  /** Display price string (e.g. "$24.99"). */
   price: string;
-  priceAmount?: number; // optional numeric for sorting/filtering
+  /** Optional numeric price for sorting/filtering. */
+  priceAmount?: number;
   image: string;
   categories: ProductCategory[];
   sku?: string;

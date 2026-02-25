@@ -4,6 +4,7 @@ import { type Href, useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Alert, Text, View } from "react-native";
 
+/** Landing screen: entry to login or bypass to tabs. */
 export default function LandingPage() {
   const router = useRouter();
   const user = useAuthState();

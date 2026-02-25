@@ -10,11 +10,16 @@ import {
 } from "@/components/ui/modal";
 import { Text } from "react-native";
 
+/** Props for the Google sign-in placeholder modal (WIP). */
 type SignInWithGoogleModalProps = {
   isOpen: boolean;
   onClose: () => void;
 };
 
+/**
+ * Modal shown when the user taps "Sign in with Google" on the login screen.
+ * Currently shows setup instructions; full Google OAuth flow is not implemented.
+ */
 export function SignInWithGoogleModal({ isOpen, onClose }: SignInWithGoogleModalProps) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="lg">

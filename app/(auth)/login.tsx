@@ -7,8 +7,9 @@ import {
 } from "@/components/ui/form-control";
 import { Input, InputField, InputSlot } from "@/components/ui/input";
 import { useAuth, useAuthState } from "@/hooks/useAuth";
+import { useThemeColors } from "@/hooks/useThemeColors";
 import { type Href, useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -19,6 +20,10 @@ import {
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+/**
+ * Login screen: email/password login and signup, forgot password, and Google sign-in (modal).
+ * Redirects to account when already signed in.
+ */
 type Mode = "login" | "signup" | "forgot";
 
 // Top-aligned layout so content doesn't jump when keyboard opens or on scroll
@@ -30,31 +35,34 @@ const SCROLL_CONTENT_STYLE = {
   alignItems: "center" as const,
 };
 
-const CARD_STYLE = {
-  backgroundColor: "#ffffff",
-  borderRadius: 12,
-  borderWidth: 1,
-  borderColor: "#e2e8f0",
-  padding: 24,
-  width: "100%" as const,
-  maxWidth: 336,
-};
-
-const HEADING_STYLE = {
-  fontSize: 22,
-  fontWeight: "700" as const,
-  color: "#0f172a",
-};
-
-const SUBTEXT_STYLE = {
-  fontSize: 14,
-  color: "#64748b",
-  marginTop: 8,
-  marginBottom: 20,
-};
-
 export default function LoginScreen() {
   const router = useRouter();
+  const colors = useThemeColors();
+  const cardStyle = useMemo(
+    () => ({
+      backgroundColor: colors.secondary0,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.outline200,
+      padding: 24,
+      width: "100%" as const,
+      maxWidth: 336,
+    }),
+    [colors]
+  );
+  const headingStyle = useMemo(
+    () => ({ fontSize: 22, fontWeight: "700" as const, color: colors.typography950 }),
+    [colors]
+  );
+  const subtextStyle = useMemo(
+    () => ({
+      fontSize: 14,
+      color: colors.typography500,
+      marginTop: 8,
+      marginBottom: 20,
+    }),
+    [colors]
+  );
   const user = useAuthState();
   const { login, signUp, resetPassword, signInWithGoogle, loading, error, clearError } = useAuth();
   const [mode, setMode] = useState<Mode>("login");
@@ -171,7 +179,7 @@ export default function LoginScreen() {
 
           {forgotSent ? (
             <View style={{ gap: 16, marginTop: 8 }}>
-              <Text style={{ fontSize: 15, color: "#15803d", textAlign: "center" }}>
+              <Text style={{ fontSize: 15, color: colors.success600, textAlign: "center" }}>
                 Check your email for a link to reset your password.
               </Text>
               <Button onPress={() => { setForgotSent(false); setMode("login"); }} size="sm">
@@ -180,7 +188,7 @@ export default function LoginScreen() {
             </View>
           ) : (
             <>
-              <Text style={{ fontSize: 14, color: "#0f172a", marginBottom: 6 }}>Email</Text>
+              <Text style={{ fontSize: 14, color: colors.typography950, marginBottom: 6 }}>Email</Text>
               <Input variant="outline" size="md" style={{ marginBottom: 16 }}>
                 <InputField
                   placeholder="Enter your email"
@@ -195,7 +203,7 @@ export default function LoginScreen() {
 
               {!isForgot && (
                 <>
-                  <Text style={{ fontSize: 14, color: "#0f172a", marginBottom: 6 }}>Password</Text>
+                  <Text style={{ fontSize: 14, color: colors.typography950, marginBottom: 6 }}>Password</Text>
                   <Input variant="outline" size="md" style={{ marginBottom: 20 }}>
                     <InputField
                       placeholder="Enter your password"
@@ -217,7 +225,7 @@ export default function LoginScreen() {
 
               {isSignup && (
                 <>
-                  <Text style={{ fontSize: 14, color: "#0f172a", marginBottom: 6 }}>Confirm password</Text>
+                  <Text style={{ fontSize: 14, color: colors.typography950, marginBottom: 6 }}>Confirm password</Text>
                   <Input variant="outline" size="md" style={{ marginBottom: 20 }}>
                     <InputField
                       placeholder="Confirm your password"
@@ -239,7 +247,7 @@ export default function LoginScreen() {
                     marginBottom: 20,
                   }}
                 >
-                  <Text style={{ fontSize: 13, color: "#64748b" }}>Remember me</Text>
+                  <Text style={{ fontSize: 13, color: colors.typography500 }}>Remember me</Text>
                   <Button
                     variant="link"
                     size="sm"

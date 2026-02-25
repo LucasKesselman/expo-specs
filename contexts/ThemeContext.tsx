@@ -1,10 +1,15 @@
 "use client";
 
+/**
+ * Persisted light/dark theme for the app. GluestackUIProvider reads theme from
+ * useTheme() to apply the correct CSS variables. Default is dark.
+ */
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 const THEME_STORAGE_KEY = "@expo-specs/theme";
 
+/** Supported theme modes; stored in AsyncStorage and applied to Gluestack. */
 export type ThemeMode = "light" | "dark";
 
 type ThemeContextValue = {
@@ -15,8 +20,9 @@ type ThemeContextValue = {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
+/** Provides theme state and persistence; wrap the app (e.g. in root layout). */
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeMode>("light");
+  const [theme, setThemeState] = useState<ThemeMode>("dark");
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -48,6 +54,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Returns current theme and setTheme; must be used within ThemeProvider. */
 export function useTheme() {
   const ctx = useContext(ThemeContext);
   if (!ctx) {

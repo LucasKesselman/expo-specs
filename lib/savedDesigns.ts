@@ -1,3 +1,7 @@
+/**
+ * Firestore helpers for the user saved-designs subcollection
+ * (users/{userId}/savedDesigns). Used by useSaveDesign and useSavedDesigns.
+ */
 import {
   collection,
   doc,
@@ -11,6 +15,7 @@ import {
 import { db } from "@/lib/firebase";
 import type { DesignProduct } from "@/types/product";
 
+/** Firestore document shape for a saved design (no id; id comes from doc ref). */
 export interface SavedDesignDoc {
   productId: string;
   product: DesignProduct;

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useThemeColors } from "@/hooks/useThemeColors";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   StyleSheet,
@@ -127,7 +128,42 @@ const ZAPPAR_AR_HTML = `
 </html>
 `;
 
+/** Camera/AR tab: requests permission then loads Zappar AR WebView (place-a-cube). */
 export default function CameraPage() {
+  const colors = useThemeColors();
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: { flex: 1, backgroundColor: colors.background0 },
+        centered: { justifyContent: "center", alignItems: "center", padding: 24 },
+        helperText: {
+          color: colors.typography950,
+          fontSize: 16,
+          textAlign: "center",
+          marginBottom: 20,
+        },
+        helperSubtext: {
+          color: colors.typography500,
+          fontSize: 14,
+          textAlign: "center",
+          marginTop: 16,
+          paddingHorizontal: 16,
+        },
+        permissionButton: {
+          backgroundColor: colors.primary500,
+          paddingVertical: 14,
+          paddingHorizontal: 28,
+          borderRadius: 12,
+        },
+        permissionButtonText: {
+          color: colors.typography950,
+          fontSize: 16,
+          fontWeight: "600",
+        },
+        webview: { flex: 1, backgroundColor: "transparent" },
+      }),
+    [colors]
+  );
   const [permission, requestPermission] = useCameraPermissions();
   const [showWebView, setShowWebView] = useState(false);
 
@@ -138,7 +174,7 @@ export default function CameraPage() {
   if (permission === null) {
     return (
       <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color={colors.primary500} />
         <Text style={styles.helperText}>Checking camera access…</Text>
       </View>
     );
@@ -167,7 +203,7 @@ export default function CameraPage() {
   if (!showWebView) {
     return (
       <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color={colors.primary500} />
       </View>
     );
   }
@@ -194,43 +230,3 @@ export default function CameraPage() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#000",
-  },
-  centered: {
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-  },
-  helperText: {
-    color: "#fff",
-    fontSize: 16,
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  helperSubtext: {
-    color: "rgba(255,255,255,0.7)",
-    fontSize: 14,
-    textAlign: "center",
-    marginTop: 16,
-    paddingHorizontal: 16,
-  },
-  permissionButton: {
-    backgroundColor: "#007AFF",
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    borderRadius: 12,
-  },
-  permissionButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  webview: {
-    flex: 1,
-    backgroundColor: "transparent",
-  },
-});

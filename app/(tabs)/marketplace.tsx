@@ -8,6 +8,7 @@ import {
   ModalHeader,
 } from "@/components/ui/modal";
 import { useSaveDesign } from "@/hooks/useSaveDesign";
+import { useThemeColors } from "@/hooks/useThemeColors";
 import { PRODUCTS } from "@/lib/products";
 import type { DesignProduct } from "@/types/product";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -24,9 +25,15 @@ import {
   View,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useRef, useState } from "react";
+import { Motion, AnimatePresence } from "@legendapp/motion";
+import { useMemo, useRef, useState } from "react";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+/**
+ * Marketplace tab: Threads (product grid) and Designs (saved-to-garment) sections.
+ * Users can save designs when signed in; garment picker and FAB for "Create new design".
+ */
 
 /** Example garments the user "owns" for the Designs section */
 const MY_GARMENTS = [
@@ -40,39 +47,278 @@ const MY_GARMENTS = [
 function ProductCard({
   product,
   onSaveDesign,
+  styles: cardStyles,
+  entranceDelay = 0,
 }: {
   product: DesignProduct;
   onSaveDesign: (product: DesignProduct) => void;
+  styles: ReturnType<typeof createMarketplaceStyles>;
+  entranceDelay?: number;
 }) {
   return (
-    <View style={styles.card}>
-      <View style={styles.cardImageWrap}>
-        <Image source={{ uri: product.image }} style={styles.cardImage} />
+    <Motion.View
+      style={cardStyles.card}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ type: "timing", duration: 220, delay: entranceDelay }}
+    >
+      <View style={cardStyles.cardImageWrap}>
+        <Image source={{ uri: product.image }} style={cardStyles.cardImage} />
       </View>
-      <Text style={styles.cardName} numberOfLines={2}>
+      <Text style={cardStyles.cardName} numberOfLines={2}>
         {product.name}
       </Text>
       {product.categories.length > 0 && (
-        <View style={styles.cardCategories}>
+        <View style={cardStyles.cardCategories}>
           {product.categories.slice(0, 2).map((cat) => (
-            <View key={cat} style={styles.categoryChip}>
-              <Text style={styles.categoryChipText}>{cat}</Text>
+            <View key={cat} style={cardStyles.categoryChip}>
+              <Text style={cardStyles.categoryChipText}>{cat}</Text>
             </View>
           ))}
         </View>
       )}
-      <Text style={styles.cardPrice}>{product.price}</Text>
-      <View style={styles.cardButtonWrap}>
+      <Text style={cardStyles.cardPrice}>{product.price}</Text>
+      <View style={cardStyles.cardButtonWrap}>
         <Button size="sm" action="primary" onPress={() => onSaveDesign(product)}>
           <ButtonText>Save Design</ButtonText>
         </Button>
       </View>
-    </View>
+    </Motion.View>
   );
+}
+
+function createMarketplaceStyles(colors: Record<string, string>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background0,
+    },
+    tabStrip: {
+      flexDirection: "row",
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      gap: 4,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.outline200,
+      backgroundColor: colors.secondary0,
+    },
+    tab: {
+      paddingVertical: 10,
+      paddingHorizontal: 20,
+      borderRadius: 10,
+    },
+    tabActive: {
+      backgroundColor: colors.primary200,
+    },
+    tabText: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.typography500,
+    },
+    tabTextActive: {
+      color: colors.primary600,
+    },
+    pager: { flex: 1 },
+    pagerContent: {},
+    page: { flex: 1 },
+    scroll: { flex: 1 },
+    scrollContent: {
+      paddingHorizontal: 16,
+      paddingBottom: 24,
+    },
+    garmentSelector: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.secondary0,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      marginBottom: 20,
+      borderWidth: 1,
+      borderColor: colors.outline200,
+      gap: 8,
+    },
+    garmentSelectorLabel: {
+      fontSize: 13,
+      color: colors.typography500,
+      marginRight: "auto",
+    },
+    garmentSelectorValue: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: colors.typography950,
+    },
+    garmentSelectorValueMuted: {
+      color: colors.typography400,
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: "600",
+      color: colors.typography950,
+    },
+    garmentOption: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 14,
+      paddingHorizontal: 12,
+      borderRadius: 10,
+      marginBottom: 6,
+      backgroundColor: colors.background50,
+    },
+    garmentOptionSelected: {
+      backgroundColor: colors.primary200,
+    },
+    garmentOptionText: {
+      fontSize: 16,
+      color: colors.typography700,
+    },
+    garmentOptionTextSelected: {
+      fontWeight: "600",
+      color: colors.primary600,
+    },
+    hero: {
+      paddingVertical: 28,
+      paddingHorizontal: 4,
+      alignItems: "center",
+    },
+    heroTitle: {
+      fontSize: 32,
+      fontWeight: "700",
+      color: colors.typography950,
+      letterSpacing: -0.5,
+    },
+    heroSubtitle: {
+      fontSize: 16,
+      color: colors.typography500,
+      marginTop: 8,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: "600",
+      color: colors.typography700,
+      marginBottom: 16,
+    },
+    grid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 12,
+      justifyContent: "space-between",
+    },
+    card: {
+      width: "47%",
+      backgroundColor: colors.secondary0,
+      borderRadius: 12,
+      overflow: "hidden",
+      paddingBottom: 12,
+      shadowColor: colors.typography0,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.06,
+      shadowRadius: 3,
+      elevation: 2,
+    },
+    cardImageWrap: {
+      aspectRatio: 1,
+      backgroundColor: colors.background100,
+    },
+    cardImage: {
+      width: "100%",
+      height: "100%",
+      resizeMode: "cover",
+    },
+    cardName: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: colors.typography950,
+      marginTop: 10,
+      marginHorizontal: 10,
+    },
+    cardCategories: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 4,
+      marginHorizontal: 10,
+      marginTop: 6,
+    },
+    categoryChip: {
+      backgroundColor: colors.outline200,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 6,
+    },
+    categoryChipText: {
+      fontSize: 11,
+      color: colors.typography400,
+      textTransform: "capitalize",
+    },
+    cardPrice: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.primary500,
+      marginHorizontal: 10,
+      marginTop: 4,
+    },
+    cardButtonWrap: {
+      marginHorizontal: 10,
+      marginTop: 10,
+    },
+    footer: {
+      alignItems: "center",
+      paddingVertical: 24,
+      marginTop: 8,
+    },
+    footerText: {
+      fontSize: 14,
+      color: colors.typography500,
+    },
+    fabContainer: {
+      position: "absolute",
+      alignItems: "flex-end",
+      gap: 12,
+    },
+    fab: {
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    fabCircle: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: colors.secondary200,
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: colors.typography0,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.2,
+      shadowRadius: 4,
+      elevation: 4,
+    },
+    fabPressed: {
+      opacity: 0.9,
+    },
+    createDesignButton: {
+      backgroundColor: colors.primary500,
+      paddingVertical: 12,
+      paddingHorizontal: 20,
+      borderRadius: 12,
+      shadowColor: colors.typography0,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.15,
+      shadowRadius: 3,
+      elevation: 3,
+    },
+    createDesignButtonText: {
+      color: colors.typography950,
+      fontSize: 15,
+      fontWeight: "600",
+    },
+  });
 }
 
 export default function MarketplaceTab() {
   const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createMarketplaceStyles(colors), [colors]);
   const [showCreateDesign, setShowCreateDesign] = useState(false);
   const [currentSection, setCurrentSection] = useState<0 | 1>(0);
   const [selectedGarment, setSelectedGarment] = useState<typeof MY_GARMENTS[0] | null>(null);
@@ -161,11 +407,13 @@ export default function MarketplaceTab() {
             </View>
             <Text style={styles.sectionTitle}>Shop tees</Text>
             <View style={styles.grid}>
-              {PRODUCTS.map((product) => (
+              {PRODUCTS.map((product, index) => (
                 <ProductCard
                   key={product.productId}
                   product={product}
                   onSaveDesign={handleSaveDesign}
+                  styles={styles}
+                  entranceDelay={index * 40}
                 />
               ))}
             </View>
@@ -190,20 +438,22 @@ export default function MarketplaceTab() {
               <Text
                 style={[
                   styles.garmentSelectorValue,
-                  !selectedGarment && { color: "#94a3b8" },
+                  !selectedGarment && styles.garmentSelectorValueMuted,
                 ]}
               >
                 {selectedGarment ? selectedGarment.name : "Tap to choose…"}
               </Text>
-              <Ionicons name="chevron-forward" size={20} color="#64748b" />
+              <Ionicons name="chevron-forward" size={20} color={colors.typography500} />
             </Pressable>
             <Text style={styles.sectionTitle}>Designs</Text>
             <View style={styles.grid}>
-              {PRODUCTS.map((product) => (
+              {PRODUCTS.map((product, index) => (
                 <ProductCard
                   key={product.productId}
                   product={product}
                   onSaveDesign={handleSaveDesign}
+                  styles={styles}
+                  entranceDelay={index * 40}
                 />
               ))}
             </View>
@@ -244,7 +494,7 @@ export default function MarketplaceTab() {
                   {g.name}
                 </Text>
                 {selectedGarment?.id === g.id && (
-                  <Ionicons name="checkmark-circle" size={22} color="#2563eb" />
+                  <Ionicons name="checkmark-circle" size={22} color={colors.primary500} />
                 )}
               </Pressable>
             ))}
@@ -263,14 +513,25 @@ export default function MarketplaceTab() {
         ]}
         pointerEvents="box-none"
       >
-        {showCreateDesign && (
-          <Pressable
-            style={styles.createDesignButton}
-            onPress={handleCreateNewDesign}
-          >
-            <Text style={styles.createDesignButtonText}>Create new design</Text>
-          </Pressable>
-        )}
+        <AnimatePresence>
+          {showCreateDesign && (
+            <Motion.View
+              key="create-design-btn"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ type: "timing", duration: 200 }}
+              style={{ marginBottom: 4 }}
+            >
+              <Pressable
+                style={styles.createDesignButton}
+                onPress={handleCreateNewDesign}
+              >
+                <Text style={styles.createDesignButtonText}>Create new design</Text>
+              </Pressable>
+            </Motion.View>
+          )}
+        </AnimatePresence>
         <Pressable
           style={({ pressed }) => [
             styles.fab,
@@ -279,239 +540,10 @@ export default function MarketplaceTab() {
           onPress={() => setShowCreateDesign((prev) => !prev)}
         >
           <View style={[styles.fabCircle, saving && { opacity: 0.7 }]}>
-            <Ionicons name="add" size={28} color="rgba(255,255,255,0.95)" />
+            <Ionicons name="add" size={28} color={colors.typography950} />
           </View>
         </Pressable>
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-  },
-  tabStrip: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-    backgroundColor: "#fff",
-  },
-  tab: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-  },
-  tabActive: {
-    backgroundColor: "#e0e7ff",
-  },
-  tabText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#64748b",
-  },
-  tabTextActive: {
-    color: "#3730a3",
-  },
-  pager: {
-    flex: 1,
-  },
-  pagerContent: {},
-  page: {
-    flex: 1,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 24,
-  },
-  garmentSelector: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    gap: 8,
-  },
-  garmentSelectorLabel: {
-    fontSize: 13,
-    color: "#64748b",
-    marginRight: "auto",
-  },
-  garmentSelectorValue: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#0f172a",
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#0f172a",
-  },
-  garmentOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    marginBottom: 6,
-    backgroundColor: "#f8fafc",
-  },
-  garmentOptionSelected: {
-    backgroundColor: "#eff6ff",
-  },
-  garmentOptionText: {
-    fontSize: 16,
-    color: "#334155",
-  },
-  garmentOptionTextSelected: {
-    fontWeight: "600",
-    color: "#1e40af",
-  },
-  hero: {
-    paddingVertical: 28,
-    paddingHorizontal: 4,
-    alignItems: "center",
-  },
-  heroTitle: {
-    fontSize: 32,
-    fontWeight: "700",
-    color: "#0f172a",
-    letterSpacing: -0.5,
-  },
-  heroSubtitle: {
-    fontSize: 16,
-    color: "#64748b",
-    marginTop: 8,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#334155",
-    marginBottom: 16,
-  },
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    justifyContent: "space-between",
-  },
-  card: {
-    width: "47%",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    overflow: "hidden",
-    paddingBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  cardImageWrap: {
-    aspectRatio: 1,
-    backgroundColor: "#f1f5f9",
-  },
-  cardImage: {
-    width: "100%",
-    height: "100%",
-    resizeMode: "cover",
-  },
-  cardName: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#0f172a",
-    marginTop: 10,
-    marginHorizontal: 10,
-  },
-  cardCategories: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 4,
-    marginHorizontal: 10,
-    marginTop: 6,
-  },
-  categoryChip: {
-    backgroundColor: "#e2e8f0",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  categoryChipText: {
-    fontSize: 11,
-    color: "#475569",
-    textTransform: "capitalize",
-  },
-  cardPrice: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#2563eb",
-    marginHorizontal: 10,
-    marginTop: 4,
-  },
-  cardButtonWrap: {
-    marginHorizontal: 10,
-    marginTop: 10,
-  },
-  footer: {
-    alignItems: "center",
-    paddingVertical: 24,
-    marginTop: 8,
-  },
-  footerText: {
-    fontSize: 14,
-    color: "#64748b",
-  },
-  fabContainer: {
-    position: "absolute",
-    alignItems: "flex-end",
-    gap: 12,
-  },
-  fab: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  fabCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "rgba(100, 116, 139, 0.75)",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  fabPressed: {
-    opacity: 0.9,
-  },
-  createDesignButton: {
-    backgroundColor: "rgba(37, 99, 235, 0.95)",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  createDesignButtonText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-});

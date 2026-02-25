@@ -1,11 +1,19 @@
+/**
+ * Firebase initialization for native (iOS/Android). Uses React Native AsyncStorage
+ * for auth persistence. Metro resolves this file when platform is not web;
+ * use firebase.web.ts for web builds.
+ *
+ * @module lib/firebase
+ */
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
-// getReactNativePersistence exists in the RN build of @firebase/auth (see dist/rn/index.rn.d.ts)
-// @ts-expect-error - not in the default auth-public.d.ts
+import { firebaseConfig } from "./firebase.config";
+
+// React Native persistence – only in this file, not loaded on web
+// @ts-expect-error - getReactNativePersistence not in default auth types
 import { initializeAuth, getReactNativePersistence } from "@firebase/auth";
 import ReactNativeAsyncStorage from "@react-native-async-storage/async-storage";
-import { firebaseConfig } from "./firebase.config";
 
 let app: FirebaseApp;
 let auth: Auth;
@@ -23,4 +31,7 @@ if (getApps().length === 0) {
   db = getFirestore(app);
 }
 
-export { auth, db };
+/** Firebase Auth instance (native persistence). */
+export { auth };
+/** Firestore instance for users/savedDesigns. */
+export { db };

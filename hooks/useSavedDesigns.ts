@@ -2,6 +2,13 @@ import { useState, useEffect, useCallback } from "react";
 import type { SavedDesignWithId } from "@/lib/savedDesigns";
 import { getSavedDesignsForUser, removeSavedDesign } from "@/lib/savedDesigns";
 
+/**
+ * Loads and manages the current user's saved designs from Firestore. Call refresh
+ * when the tab gains focus. Use on the account tab to list and remove saved designs.
+ *
+ * @param userId - Current user uid or null; when null, returns empty list and no loading.
+ * @returns savedDesigns, loading, error, refresh, remove, removingId
+ */
 export function useSavedDesigns(userId: string | null) {
   const [savedDesigns, setSavedDesigns] = useState<SavedDesignWithId[]>([]);
   const [loading, setLoading] = useState(!!userId);

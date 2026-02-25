@@ -5,6 +5,12 @@ import type { DesignProduct } from "@/types/product";
 
 type SaveDesignResult = { success: true } | { success: false; error: string };
 
+/**
+ * Saves a design to the current user's Firestore savedDesigns collection.
+ * Requires the user to be signed in. Use in marketplace when the user taps "Save Design".
+ *
+ * @returns saveDesign(product), saving (boolean), isLoggedIn (boolean)
+ */
 export function useSaveDesign() {
   const user = useAuthState();
   const [saving, setSaving] = useState(false);

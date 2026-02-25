@@ -1,12 +1,20 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useThemeColors } from "@/hooks/useThemeColors";
 import { Tabs } from "expo-router";
 
+/** Tabs layout: Marketplace, Camera, Account with theme-aware tab bar colors. */
 export default function TabsLayout() {
+  const colors = useThemeColors();
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#2563eb",
+        tabBarActiveTintColor: colors.primary500,
+        tabBarInactiveTintColor: colors.typography500,
+        tabBarStyle: {
+          backgroundColor: colors.secondary0,
+          borderTopColor: colors.outline200,
+        },
       }}
     >
       <Tabs.Screen

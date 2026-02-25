@@ -1,8 +1,9 @@
 import type { DesignProduct } from "@/types/product";
 
 /**
- * All design products with productId, basic info, and multiple categories.
- * Use productId as the stable reference when saving to Firestore.
+ * Catalog of design products (tees, etc.) for the marketplace. Each item has a
+ * stable productId for saving to Firestore. Used by the marketplace tab and
+ * saved-designs flows.
  */
 export const PRODUCTS: DesignProduct[] = [
   {

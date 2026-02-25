@@ -1,8 +1,11 @@
 /**
- * Copy this file to firebase.config.ts and fill in your Firebase Web app config.
- * Get these values from: Firebase Console → Project settings → Your apps → Web app.
+ * Template for Firebase Web app config. Copy this file to firebase.config.ts
+ * and replace placeholder values. Get config from Firebase Console → Project
+ * settings → Your apps → Web app. Do not commit firebase.config.ts (gitignored).
  *
- * Do not commit firebase.config.ts (it is in .gitignore).
+ * @example
+ * cp lib/firebase.config.example.ts lib/firebase.config.ts
+ * // Then edit lib/firebase.config.ts with your apiKey, projectId, etc.
  */
 
 export const firebaseConfig = {
