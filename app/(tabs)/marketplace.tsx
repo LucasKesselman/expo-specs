@@ -114,12 +114,14 @@ function DesignCard({
   onSaveDesign,
   onPressImage,
   styles: cardStyles,
+  colors,
   entranceDelay = 0,
 }: {
   design: Design;
   onSaveDesign: (design: Design) => void;
   onPressImage: (design: Design) => void;
   styles: MarketplaceStyles;
+  colors: Record<string, string>;
   entranceDelay?: number;
 }) {
   return (
@@ -149,10 +151,15 @@ function DesignCard({
           ))}
         </View>
       )}
-      <Text style={cardStyles.cardPrice}>{design.price}</Text>
-      <View style={cardStyles.cardButtonWrap}>
-        <Button size="sm" action="primary" onPress={() => onSaveDesign(design)}>
-          <ButtonText>Save Design</ButtonText>
+      <View style={cardStyles.cardPriceRow}>
+        <Text style={cardStyles.cardPrice}>{design.price}</Text>
+        <Button
+          size="sm"
+          action="primary"
+          onPress={() => onSaveDesign(design)}
+          accessibilityLabel={`Save ${design.name} to your collection`}
+        >
+          <Ionicons name="bookmark" size={18} color={colors.typography950} />
         </Button>
       </View>
     </Motion.View>
@@ -174,7 +181,7 @@ function createMarketplaceStyles(colors: Record<string, string>) {
       gap: 4,
       borderBottomWidth: 1,
       borderBottomColor: colors.outline200,
-      backgroundColor: colors.secondary0,
+      backgroundColor: colors.background0,
     },
     tab: {
       paddingVertical: 10,
@@ -647,6 +654,7 @@ export default function MarketplaceTab() {
                   onSaveDesign={handleSaveDesignFromModal}
                   onPressImage={handlePressDesignImage}
                   styles={styles}
+                  colors={colors}
                   entranceDelay={index * 40}
                 />
               ))}

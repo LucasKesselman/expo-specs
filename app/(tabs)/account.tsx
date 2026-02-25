@@ -12,6 +12,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import type { SavedDesignWithId } from "@/lib/savedDesigns";
 import { useFocusEffect } from "@react-navigation/native";
 import { type Href, useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { User } from "firebase/auth";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -477,6 +478,7 @@ function createAccountStyles(colors: Record<string, string>) {
 
 export default function AccountTab() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const styles = useMemo(() => createAccountStyles(colors), [colors]);
   const { logout } = useAuth();
@@ -506,8 +508,8 @@ export default function AccountTab() {
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
-          paddingTop: 24,
-          paddingBottom: 32,
+          paddingTop: insets.top + 24,
+          paddingBottom: insets.bottom + 32,
         }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
