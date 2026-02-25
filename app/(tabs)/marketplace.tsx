@@ -1,11 +1,22 @@
 import { Button, ButtonText } from "@/components/ui/button";
+import {
+  Modal,
+  ModalBackdrop,
+  ModalBody,
+  ModalContent,
+  ModalCloseButton,
+  ModalHeader,
+} from "@/components/ui/modal";
 import { useSaveDesign } from "@/hooks/useSaveDesign";
 import { PRODUCTS } from "@/lib/products";
 import type { DesignProduct } from "@/types/product";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Alert,
+  Dimensions,
   Image,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,7 +24,18 @@ import {
   View,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useState } from "react";
+import { useRef, useState } from "react";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+/** Example garments the user "owns" for the Designs section */
+const MY_GARMENTS = [
+  { id: "g1", name: "Classic White Tee" },
+  { id: "g2", name: "Black Hoodie" },
+  { id: "g3", name: "Navy Crewneck" },
+  { id: "g4", name: "Grey Oversized" },
+  { id: "g5", name: "Olive Graphic Tee" },
+];
 
 function ProductCard({
   product,
@@ -52,7 +74,25 @@ function ProductCard({
 export default function MarketplaceTab() {
   const insets = useSafeAreaInsets();
   const [showCreateDesign, setShowCreateDesign] = useState(false);
+  const [currentSection, setCurrentSection] = useState<0 | 1>(0);
+  const [selectedGarment, setSelectedGarment] = useState<typeof MY_GARMENTS[0] | null>(null);
+  const [garmentModalOpen, setGarmentModalOpen] = useState(false);
   const { saveDesign, saving, isLoggedIn } = useSaveDesign();
+  const horizontalScrollRef = useRef<ScrollView>(null);
+
+  const onHorizontalScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const x = e.nativeEvent.contentOffset.x;
+    const index = Math.round(x / SCREEN_WIDTH) as 0 | 1;
+    if (index !== currentSection) setCurrentSection(index);
+  };
+
+  const scrollToSection = (index: 0 | 1) => {
+    setCurrentSection(index);
+    horizontalScrollRef.current?.scrollTo({
+      x: index * SCREEN_WIDTH,
+      animated: true,
+    });
+  };
 
   const handleCreateNewDesign = () => {
     Alert.alert("placeholder DB CREATE action");
@@ -76,37 +116,141 @@ export default function MarketplaceTab() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Hero */}
-        <View style={styles.hero}>
-          <Text style={styles.heroTitle}>Threads</Text>
-          <Text style={styles.heroSubtitle}>
-            Quality tees, made simple.
+      {/* Tab strip: Threads | Designs */}
+      <View style={styles.tabStrip}>
+        <Pressable
+          style={[styles.tab, currentSection === 0 && styles.tabActive]}
+          onPress={() => scrollToSection(0)}
+        >
+          <Text style={[styles.tabText, currentSection === 0 && styles.tabTextActive]}>
+            Threads
           </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.tab, currentSection === 1 && styles.tabActive]}
+          onPress={() => scrollToSection(1)}
+        >
+          <Text style={[styles.tabText, currentSection === 1 && styles.tabTextActive]}>
+            Designs
+          </Text>
+        </Pressable>
+      </View>
+
+      {/* Horizontal pager: swipe between Threads and Designs */}
+      <ScrollView
+        ref={horizontalScrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={onHorizontalScroll}
+        style={styles.pager}
+        contentContainerStyle={styles.pagerContent}
+      >
+        {/* Page 0: Threads */}
+        <View style={[styles.page, { width: SCREEN_WIDTH }]}>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.hero}>
+              <Text style={styles.heroTitle}>Threads</Text>
+              <Text style={styles.heroSubtitle}>
+                Quality tees, made simple.
+              </Text>
+            </View>
+            <Text style={styles.sectionTitle}>Shop tees</Text>
+            <View style={styles.grid}>
+              {PRODUCTS.map((product) => (
+                <ProductCard
+                  key={product.productId}
+                  product={product}
+                  onSaveDesign={handleSaveDesign}
+                />
+              ))}
+            </View>
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>Free shipping on orders over $50</Text>
+            </View>
+          </ScrollView>
         </View>
 
-        {/* Section label */}
-        <Text style={styles.sectionTitle}>Shop tees</Text>
-
-        {/* Product grid */}
-        <View style={styles.grid}>
-          {PRODUCTS.map((product) => (
-            <ProductCard
-              key={product.productId}
-              product={product}
-              onSaveDesign={handleSaveDesign}
-            />
-          ))}
-        </View>
-
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Free shipping on orders over $50</Text>
+        {/* Page 1: Designs */}
+        <View style={[styles.page, { width: SCREEN_WIDTH }]}>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <Pressable
+              style={styles.garmentSelector}
+              onPress={() => setGarmentModalOpen(true)}
+            >
+              <Text style={styles.garmentSelectorLabel}>Currently selected Garment</Text>
+              <Text
+                style={[
+                  styles.garmentSelectorValue,
+                  !selectedGarment && { color: "#94a3b8" },
+                ]}
+              >
+                {selectedGarment ? selectedGarment.name : "Tap to choose…"}
+              </Text>
+              <Ionicons name="chevron-forward" size={20} color="#64748b" />
+            </Pressable>
+            <Text style={styles.sectionTitle}>Designs</Text>
+            <View style={styles.grid}>
+              {PRODUCTS.map((product) => (
+                <ProductCard
+                  key={product.productId}
+                  product={product}
+                  onSaveDesign={handleSaveDesign}
+                />
+              ))}
+            </View>
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>Save designs to your selected garment</Text>
+            </View>
+          </ScrollView>
         </View>
       </ScrollView>
+
+      {/* Garment picker modal */}
+      <Modal isOpen={garmentModalOpen} onClose={() => setGarmentModalOpen(false)} size="md">
+        <ModalBackdrop />
+        <ModalContent>
+          <ModalHeader>
+            <Text style={styles.modalTitle}>Choose a garment</Text>
+            <ModalCloseButton onPress={() => setGarmentModalOpen(false)} />
+          </ModalHeader>
+          <ModalBody>
+            {MY_GARMENTS.map((g) => (
+              <Pressable
+                key={g.id}
+                style={[
+                  styles.garmentOption,
+                  selectedGarment?.id === g.id && styles.garmentOptionSelected,
+                ]}
+                onPress={() => {
+                  setSelectedGarment(g);
+                  setGarmentModalOpen(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.garmentOptionText,
+                    selectedGarment?.id === g.id && styles.garmentOptionTextSelected,
+                  ]}
+                >
+                  {g.name}
+                </Text>
+                {selectedGarment?.id === g.id && (
+                  <Ionicons name="checkmark-circle" size={22} color="#2563eb" />
+                )}
+              </Pressable>
+            ))}
+          </ModalBody>
+        </ModalContent>
+      </Modal>
 
       {/* Floating + button and create design - fixed, only on this page */}
       <View
@@ -148,12 +292,92 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f8fafc",
   },
+  tabStrip: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+    backgroundColor: "#fff",
+  },
+  tab: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+  },
+  tabActive: {
+    backgroundColor: "#e0e7ff",
+  },
+  tabText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#64748b",
+  },
+  tabTextActive: {
+    color: "#3730a3",
+  },
+  pager: {
+    flex: 1,
+  },
+  pagerContent: {},
+  page: {
+    flex: 1,
+  },
   scroll: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 16,
     paddingBottom: 24,
+  },
+  garmentSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    gap: 8,
+  },
+  garmentSelectorLabel: {
+    fontSize: 13,
+    color: "#64748b",
+    marginRight: "auto",
+  },
+  garmentSelectorValue: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#0f172a",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#0f172a",
+  },
+  garmentOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginBottom: 6,
+    backgroundColor: "#f8fafc",
+  },
+  garmentOptionSelected: {
+    backgroundColor: "#eff6ff",
+  },
+  garmentOptionText: {
+    fontSize: 16,
+    color: "#334155",
+  },
+  garmentOptionTextSelected: {
+    fontWeight: "600",
+    color: "#1e40af",
   },
   hero: {
     paddingVertical: 28,
