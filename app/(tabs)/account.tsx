@@ -4,6 +4,7 @@ import {
   FormControlLabel,
   FormControlLabelText,
 } from "@/components/ui/form-control";
+import { Input, InputField } from "@/components/ui/input";
 import { useAuth, useAuthState } from "@/hooks/useAuth";
 import { useSavedDesigns } from "@/hooks/useSavedDesigns";
 import { useThemeColors } from "@/hooks/useThemeColors";
@@ -22,6 +23,7 @@ import {
   Text,
   View,
 } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
 
 function formatAuthTime(isoString: string | undefined): string {
   if (!isoString) return "—";
@@ -229,19 +231,42 @@ function SavedDesignsSection({
 function UserSettingsSection({
   styles,
   colors,
+  userEmail,
 }: {
   styles: ReturnType<typeof createAccountStyles>;
   colors: Record<string, string>;
+  userEmail: string | null;
 }) {
   const { theme, setTheme } = useTheme();
+  const { resetPassword, loading: authLoading, error: authError, clearError } = useAuth();
   const [darkMode, setDarkMode] = useState(theme === "dark");
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
 
   useEffect(() => {
     setDarkMode(theme === "dark");
   }, [theme]);
 
+  useEffect(() => {
+    if (userEmail && !forgotEmail) setForgotEmail(userEmail);
+  }, [userEmail]);
+
   const handleApply = () => {
     setTheme(darkMode ? "dark" : "light");
+  };
+
+  const handleForgotPassword = async () => {
+    const email = forgotEmail.trim();
+    if (!email) return;
+    clearError();
+    setForgotSent(false);
+    try {
+      await resetPassword(email);
+      setForgotSent(true);
+      Alert.alert("Check your email", "If an account exists for that email, we sent a password reset link.");
+    } catch {
+      // error shown via authError
+    }
   };
 
   return (
@@ -270,6 +295,48 @@ function UserSettingsSection({
         >
           <ButtonText>Apply changes</ButtonText>
         </Button>
+
+        <Text style={[styles.settingsSectionTitle, { marginTop: 20 }]}>Forgot password</Text>
+        <FormControl style={{ marginTop: 6 }}>
+          <FormControlLabel>
+            <FormControlLabelText>Email</FormControlLabelText>
+          </FormControlLabel>
+          <View style={styles.forgotRow}>
+            <Input variant="outline" size="md" style={styles.forgotInput}>
+              <InputField
+                placeholder="your@email.com"
+                value={forgotEmail}
+                onChangeText={(text) => {
+                  setForgotEmail(text);
+                  if (authError) clearError();
+                  setForgotSent(false);
+                }}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </Input>
+            <Button
+              size="sm"
+              variant="solid"
+              action="primary"
+              onPress={handleForgotPassword}
+              isDisabled={!forgotEmail.trim() || authLoading}
+              style={styles.forgotButtonSquare}
+            >
+              {authLoading ? (
+                <Text style={styles.forgotButtonSquareText}>…</Text>
+              ) : (
+                <Ionicons name="arrow-forward" size={20} color={colors.typography0} />
+              )}
+            </Button>
+          </View>
+          {authError ? (
+            <Text style={styles.forgotError}>{authError}</Text>
+          ) : forgotSent ? (
+            <Text style={styles.forgotSuccess}>Reset link sent. Check your email.</Text>
+          ) : null}
+        </FormControl>
       </View>
     </View>
   );
@@ -298,6 +365,42 @@ function createAccountStyles(colors: Record<string, string>) {
     },
     applyButton: {
       marginTop: 16,
+    },
+    forgotRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      marginTop: 6,
+    },
+    forgotInput: {
+      flex: 1,
+      minWidth: 0,
+    },
+    forgotButtonSquare: {
+      width: 44,
+      height: 44,
+      minWidth: 44,
+      minHeight: 44,
+      padding: 0,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    forgotButtonSquareText: {
+      fontSize: 18,
+      fontWeight: "600",
+      color: colors.typography0,
+    },
+    forgotError: {
+      fontSize: 13,
+      color: colors.error500,
+      marginTop: 4,
+      marginBottom: 4,
+    },
+    forgotSuccess: {
+      fontSize: 13,
+      color: colors.success500 ?? colors.primary500,
+      marginTop: 4,
+      marginBottom: 4,
     },
     savedSection: { marginHorizontal: 20, marginBottom: 24 },
     savedSectionTitle: {
@@ -413,7 +516,7 @@ export default function AccountTab() {
         {user ? (
           <>
             <SessionInfo user={user} colors={colors} />
-            <UserSettingsSection styles={styles} colors={colors} />
+            <UserSettingsSection styles={styles} colors={colors} userEmail={user.email ?? null} />
             <SavedDesignsSection
               userId={user.uid}
               savedDesigns={savedDesigns}

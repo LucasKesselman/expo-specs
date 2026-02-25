@@ -31,6 +31,8 @@ if (getApps().length === 0) {
   db = getFirestore(app);
 }
 
+/** Firebase App (for Functions, etc.). */
+export { app };
 /** Firebase Auth instance (native persistence). */
 export { auth };
 /** Firestore instance for users/savedDesigns. */

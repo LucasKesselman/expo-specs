@@ -8,7 +8,8 @@ import {
   ModalFooter,
   ModalHeader,
 } from "@/components/ui/modal";
-import { Text } from "react-native";
+import { useEffect } from "react";
+import { Alert, Text } from "react-native";
 
 /** Props for the Google sign-in placeholder modal (WIP). */
 type SignInWithGoogleModalProps = {
@@ -21,6 +22,15 @@ type SignInWithGoogleModalProps = {
  * Currently shows setup instructions; full Google OAuth flow is not implemented.
  */
 export function SignInWithGoogleModal({ isOpen, onClose }: SignInWithGoogleModalProps) {
+  useEffect(() => {
+    if (isOpen) {
+      Alert.alert(
+        "Google Sign-In not configured",
+        "No OAuth client ID / API key is set. This is a placeholder. Add EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID (and complete the OAuth flow) to enable Sign in with Google."
+      );
+    }
+  }, [isOpen]);
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="lg">
       <ModalBackdrop />

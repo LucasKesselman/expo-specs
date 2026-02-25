@@ -36,18 +36,7 @@ You can start developing by editing the files inside the **app** directory. This
 Firestore is used to store each user’s saved designs. If you haven’t already:
 
 1. **Create a Firestore database** – In [Firebase Console](https://console.firebase.google.com) → your project → **Build** → **Firestore Database** → **Create database** (start in test mode or production with rules).
-2. **Security rules (recommended)** – Restrict `users/{userId}/savedDesigns` so only the signed-in user can read/write their own documents. Example:
-
-   ```
-   rules_version = '2';
-   service cloud.firestore {
-     match /databases/{database}/documents {
-       match /users/{userId}/savedDesigns/{docId} {
-         allow read, write: if request.auth != null && request.auth.uid == userId;
-       }
-     }
-   }
-   ```
+2. **Security rules** – Rules in [firebase/firestore.rules](firebase/firestore.rules) restrict `users/{userId}/savedDesigns` so only the signed-in user can read/write their own documents. Deploy from project root: `firebase deploy --only firestore`. See [firebase/README.md](firebase/README.md).
 
 Once the database exists and your app has the correct `projectId` in `lib/firebase.config.ts`, saving a design from the Marketplace will create documents under `users/<uid>/savedDesigns/`.
 

@@ -15,12 +15,14 @@ import type { Design } from "@/types/design";
 import type { Garment } from "@/types/garment";
 import { CheckoutModal, type CartItem } from "@/components/checkout";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Haptics from "expo-haptics";
 import {
   Alert,
   Dimensions,
   Image,
   NativeSyntheticEvent,
   NativeScrollEvent,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -492,6 +494,9 @@ export default function MarketplaceTab() {
     setSelectedGarmentDetail(garment);
   };
   const handleAddToCart = (garment: Garment) => {
+    if (Platform.OS === "ios" || Platform.OS === "android") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
     setCart((prev) => {
       const i = prev.findIndex((x) => x.garment.id === garment.id);
       if (i >= 0) {

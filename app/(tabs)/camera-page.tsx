@@ -37,6 +37,26 @@ const ZAPPAR_AR_HTML = `
       opacity: 0.9;
     }
     #place-btn:active { opacity: 1; }
+    #flip-btn {
+      position: fixed;
+      top: calc(env(safe-area-inset-top) + 12px);
+      right: 12px;
+      width: 44px;
+      height: 44px;
+      border-radius: 22px;
+      background: rgba(0,0,0,0.35);
+      border: none;
+      cursor: pointer;
+      z-index: 10;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    #flip-btn:active { background: rgba(0,0,0,0.5); }
+    #flip-btn svg { width: 24px; height: 24px; }
     #permission-msg {
       position: fixed;
       top: 50%;
@@ -54,6 +74,12 @@ const ZAPPAR_AR_HTML = `
 <body>
   <canvas id="canvas"></canvas>
   <button id="place-btn" style="display:none;">Tap to place object</button>
+  <button id="flip-btn" aria-label="Switch camera">
+    <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M23 4v6h-6M1 20v-6h6"/>
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+    </svg>
+  </button>
   <div id="permission-msg">Requesting camera access…</div>
   <script src="https://unpkg.com/three@0.128.0/build/three.min.js"><\/script>
   <script src="https://libs.zappar.com/zappar-threejs/4.3.0/zappar-threejs.js"><\/script>
@@ -79,12 +105,47 @@ const ZAPPAR_AR_HTML = `
         }
       }, 5000);
 
+      var flipBtn = document.getElementById('flip-btn');
+      var frontCameraAvailable = false;
+      var isFrontCamera = false;
+
+      function checkFrontCameraAndShowButton() {
+        try {
+          camera.start(true);
+          frontCameraAvailable = true;
+          camera.start(false);
+          isFrontCamera = false;
+          flipBtn.style.display = 'flex';
+        } catch (e) {
+          frontCameraAvailable = false;
+        }
+      }
+
+      flipBtn.addEventListener('click', function() {
+        if (!frontCameraAvailable) return;
+        try {
+          if (isFrontCamera) {
+            camera.start(false);
+            isFrontCamera = false;
+          } else {
+            camera.userCameraMirrorMode = ZapparThree.CameraMirrorMode.Poses;
+            camera.start(true);
+            isFrontCamera = true;
+          }
+        } catch (e) {
+          frontCameraAvailable = false;
+          flipBtn.style.display = 'none';
+        }
+      });
+
       ZapparThree.permissionRequestUI().then(function(granted) {
         clearTimeout(permissionTimeout);
         if (granted) {
           camera.start();
+          camera.userCameraMirrorMode = ZapparThree.CameraMirrorMode.None;
           permissionMsg.textContent = '';
           placeBtn.style.display = 'block';
+          setTimeout(checkFrontCameraAndShowButton, 150);
         } else {
           permissionMsg.textContent = 'Camera access is needed for AR. Please allow and reload.';
           ZapparThree.permissionDeniedUI();

@@ -9,9 +9,28 @@ import {
 } from "@/components/ui/modal";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import type { Garment } from "@/types/garment";
+import * as Haptics from "expo-haptics";
 import { useMemo } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  Image,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
+
+/** Triple haptic buzz for checkout / payment actions (iOS/Android only). */
+function triggerTripleHaptic() {
+  if (Platform.OS !== "ios" && Platform.OS !== "android") return;
+  const style = Haptics.ImpactFeedbackStyle.Heavy;
+  Haptics.impactAsync(style);
+  setTimeout(() => Haptics.impactAsync(style), 220);
+  setTimeout(() => Haptics.impactAsync(style), 440);
+}
 
 export type CartItem = { garment: Garment; quantity: number };
 
@@ -79,7 +98,18 @@ export function CheckoutModal({ isOpen, onClose, cart, onRemoveItem }: CheckoutM
                   With Stripe integrated: you would enter billing details here and complete payment securely. No
                   payment is processed in this build.
                 </Text>
-                <Button size="md" action="primary" isDisabled={cart.length === 0}>
+                <Button
+                  size="md"
+                  action="primary"
+                  isDisabled={cart.length === 0}
+                  onPress={() => {
+                    triggerTripleHaptic();
+                    Alert.alert(
+                      "Stripe not configured",
+                      "This is a placeholder. No real payment API key is set. To enable payments, set STRIPE_SECRET_KEY in your Firebase Cloud Functions config (or env) and deploy the createPaymentIntent function."
+                    );
+                  }}
+                >
                   <ButtonText>Pay with Stripe (placeholder)</ButtonText>
                 </Button>
               </View>

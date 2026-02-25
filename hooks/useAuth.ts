@@ -10,7 +10,8 @@ import {
   type User,
   type AuthError,
 } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { auth, app } from "@/lib/firebase";
 
 /**
  * Subscribes to the current Firebase Auth user. Returns null when signed out.
@@ -65,7 +66,17 @@ export function useAuth() {
     setError(null);
     setLoading(true);
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      const userCred = await createUserWithEmailAndPassword(auth, email, password);
+      try {
+        const functions = getFunctions(app);
+        const sendEmailVerificationFn = httpsCallable<
+          { email?: string },
+          { success: boolean }
+        >(functions, "sendEmailVerification");
+        await sendEmailVerificationFn({ email: userCred.user.email ?? email });
+      } catch (_) {
+        // Cloud Function may not be deployed or Resend not configured; continue
+      }
     } catch (err) {
       setError(getAuthErrorMessage(err as AuthError));
       throw err;
@@ -78,9 +89,19 @@ export function useAuth() {
     setError(null);
     setLoading(true);
     try {
-      await sendPasswordResetEmail(auth, email);
+      const functions = getFunctions(app);
+      const sendPasswordResetFn = httpsCallable<
+        { email: string },
+        { success: boolean }
+      >(functions, "sendPasswordReset");
+      await sendPasswordResetFn({ email });
     } catch (err) {
-      setError(getAuthErrorMessage(err as AuthError));
+      const callableErr = err as { code?: string; message?: string };
+      if (callableErr?.code === "functions/unavailable" || callableErr?.code === "internal") {
+        await sendPasswordResetEmail(auth, email);
+        return;
+      }
+      setError(callableErr?.message ?? getAuthErrorMessage(err as AuthError));
       throw err;
     } finally {
       setLoading(false);
