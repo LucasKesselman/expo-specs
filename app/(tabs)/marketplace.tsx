@@ -7,9 +7,11 @@ import {
   ModalCloseButton,
   ModalHeader,
 } from "@/components/ui/modal";
-import { DESIGNS, designToDesignProduct } from "@/lib/designs";
-import { GARMENTS } from "@/lib/garments";
+import { designToDesignProduct } from "@/lib/designs";
+import { useAuthState } from "@/hooks/useAuth";
+import { useCatalogFromFirestore } from "@/hooks/useCatalogFromFirestore";
 import { useSaveDesign } from "@/hooks/useSaveDesign";
+import { useSavedDesigns } from "@/hooks/useSavedDesigns";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import type { Design } from "@/types/design";
 import type { Garment } from "@/types/garment";
@@ -17,6 +19,7 @@ import { CheckoutModal, type CartItem } from "@/components/checkout";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import {
+  ActivityIndicator,
   Alert,
   Dimensions,
   Image,
@@ -24,6 +27,7 @@ import {
   NativeScrollEvent,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -36,8 +40,9 @@ import { useMemo, useRef, useState } from "react";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 /**
- * Marketplace tab: Threads (product grid) and Designs (saved-to-garment) sections.
- * Users can save designs when signed in; garment picker and FAB for "Create new design".
+ * Marketplace tab: Threads (garments) and Designs sections.
+ * Catalog is loaded from Firestore via useCatalogFromFirestore — no hardcoded data.
+ * Pull-to-refresh on iOS/Android refetches from Firestore. Users can save designs when signed in.
  */
 
 /** Garments the user can select to apply designs to (Designs section). */
@@ -109,21 +114,40 @@ function GarmentCard({
   );
 }
 
+/**
+ * Card for a single design. Bookmark shows saved state from user's savedDesigns;
+ * tap to save (when not saved) or unsave (when saved).
+ */
 function DesignCard({
   design,
+  isSaved,
+  savedDesignId,
   onSaveDesign,
+  onUnsaveDesign,
   onPressImage,
   styles: cardStyles,
   colors,
   entranceDelay = 0,
+  saving,
+  removing,
 }: {
   design: Design;
+  isSaved: boolean;
+  savedDesignId: string | null;
   onSaveDesign: (design: Design) => void;
+  onUnsaveDesign: (savedDesignId: string) => void;
   onPressImage: (design: Design) => void;
   styles: MarketplaceStyles;
   colors: Record<string, string>;
   entranceDelay?: number;
+  saving?: boolean;
+  removing?: boolean;
 }) {
+  const handleBookmarkPress = () => {
+    if (isSaved && savedDesignId) onUnsaveDesign(savedDesignId);
+    else onSaveDesign(design);
+  };
+
   return (
     <Motion.View
       style={cardStyles.card}
@@ -155,11 +179,21 @@ function DesignCard({
         <Text style={cardStyles.cardPrice}>{design.price}</Text>
         <Button
           size="sm"
-          action="primary"
-          onPress={() => onSaveDesign(design)}
-          accessibilityLabel={`Save ${design.name} to your collection`}
+          action={isSaved ? "secondary" : "primary"}
+          variant={isSaved ? "outline" : "solid"}
+          onPress={handleBookmarkPress}
+          isDisabled={saving || removing}
+          accessibilityLabel={
+            isSaved
+              ? `Remove ${design.name} from saved`
+              : `Save ${design.name} to your collection`
+          }
         >
-          <Ionicons name="bookmark" size={18} color={colors.typography950} />
+          <Ionicons
+            name={isSaved ? "bookmark" : "bookmark-outline"}
+            size={18}
+            color={isSaved ? colors.typography500 : colors.typography950}
+          />
         </Button>
       </View>
     </Motion.View>
@@ -484,10 +518,30 @@ function createMarketplaceStyles(colors: Record<string, string>) {
   });
 }
 
+/**
+ * Marketplace screen: two horizontal pages (Threads | Designs) backed by Firestore.
+ * Fetches once on mount; pull-to-refresh triggers a refetch. Loading and error states are shown inline.
+ */
 export default function MarketplaceTab() {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const styles = useMemo(() => createMarketplaceStyles(colors), [colors]);
+  const user = useAuthState();
+  const {
+    designs,
+    garments,
+    loading,
+    refreshing,
+    error,
+    refresh: refreshCatalog,
+  } = useCatalogFromFirestore();
+  const {
+    savedDesigns,
+    refresh: refreshSavedDesigns,
+    remove: removeSavedDesign,
+    addOptimistic,
+    removingId,
+  } = useSavedDesigns(user?.uid ?? null);
   const [currentSection, setCurrentSection] = useState<0 | 1>(0);
   const [selectedGarment, setSelectedGarment] = useState<typeof MY_GARMENTS[0] | null>(null);
   const [garmentModalOpen, setGarmentModalOpen] = useState(false);
@@ -496,6 +550,36 @@ export default function MarketplaceTab() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
   const { saveDesign, saving, isLoggedIn } = useSaveDesign();
+
+  /** Saved state for a design (auth-only). Used to show bookmark toggled and to unsave. */
+  const getSavedState = useCallback(
+    (designId: string) => {
+      const entry = savedDesigns.find((s) => s.product.productId === designId);
+      return { isSaved: !!entry, savedDesignId: entry?.id ?? null };
+    },
+    [savedDesigns]
+  );
+
+  /** Pull-to-refresh: refetch catalog and (when signed in) saved designs with minimal queries. */
+  const handlePullRefresh = useCallback(async () => {
+    await Promise.all([
+      refreshCatalog(),
+      user ? refreshSavedDesigns() : Promise.resolve(),
+    ]);
+  }, [refreshCatalog, user, refreshSavedDesigns]);
+
+  /** Native pull-to-refresh control; uses theme primary for spinner on iOS/Android. */
+  const refreshControl = useMemo(
+    () => (
+      <RefreshControl
+        refreshing={refreshing}
+        onRefresh={handlePullRefresh}
+        tintColor={colors.primary500}
+        colors={[colors.primary500]}
+      />
+    ),
+    [refreshing, handlePullRefresh, colors.primary500]
+  );
 
   const handlePressGarmentImage = (garment: Garment) => {
     setSelectedGarmentDetail(garment);
@@ -522,7 +606,7 @@ export default function MarketplaceTab() {
   const handlePressDesignImage = (design: Design) => {
     setSelectedDesignDetail(design);
   };
-  const handleSaveDesignFromModal = async (design: Design) => {
+  const handleSaveDesign = async (design: Design) => {
     if (!isLoggedIn) {
       Alert.alert(
         "Sign in to save",
@@ -532,11 +616,14 @@ export default function MarketplaceTab() {
     }
     const result = await saveDesign(designToDesignProduct(design));
     if (result.success) {
-      Alert.alert("Saved", `"${design.name}" has been saved to your designs.`);
-      setSelectedDesignDetail(null);
+      addOptimistic(designToDesignProduct(design), result.savedDesignId);
     } else {
       Alert.alert("Couldn't save", result.error);
     }
+  };
+
+  const handleUnsaveDesign = async (savedDesignId: string) => {
+    await removeSavedDesign(savedDesignId);
   };
   const horizontalScrollRef = useRef<ScrollView>(null);
 
@@ -586,12 +673,13 @@ export default function MarketplaceTab() {
         style={styles.pager}
         contentContainerStyle={styles.pagerContent}
       >
-        {/* Page 0: Threads */}
+        {/* Page 0: Threads — data from Firestore; pull-to-refresh supported. */}
         <View style={[styles.page, { width: SCREEN_WIDTH }]}>
           <ScrollView
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
+            refreshControl={refreshControl}
           >
             <View style={styles.hero}>
               <Text style={styles.heroTitle}>Threads</Text>
@@ -599,31 +687,48 @@ export default function MarketplaceTab() {
                 Quality tees, made simple.
               </Text>
             </View>
-            <View style={styles.grid}>
-              {GARMENTS.map((garment, index) => (
-                <GarmentCard
-                  key={garment.id}
-                  garment={garment}
-                  onPressImage={handlePressGarmentImage}
-                  onAddToCart={handleAddToCart}
-                  styles={styles}
-                  colors={colors}
-                  entranceDelay={index * 40}
-                />
-              ))}
-            </View>
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>Free shipping on orders over $50</Text>
-            </View>
+            {error ? (
+              <View style={styles.footer}>
+                <Text style={[styles.footerText, { color: colors.error500 }]}>{error}</Text>
+                <Button size="sm" variant="outline" onPress={refresh} style={{ marginTop: 12 }}>
+                  <ButtonText>Retry</ButtonText>
+                </Button>
+              </View>
+            ) : loading && garments.length === 0 ? (
+              <View style={[styles.footer, { paddingVertical: 48 }]}>
+                <ActivityIndicator size="large" color={colors.primary500} />
+                <Text style={[styles.footerText, { marginTop: 16 }]}>Loading threads…</Text>
+              </View>
+            ) : (
+              <>
+                <View style={styles.grid}>
+                  {garments.map((garment, index) => (
+                    <GarmentCard
+                      key={garment.id}
+                      garment={garment}
+                      onPressImage={handlePressGarmentImage}
+                      onAddToCart={handleAddToCart}
+                      styles={styles}
+                      colors={colors}
+                      entranceDelay={index * 40}
+                    />
+                  ))}
+                </View>
+                <View style={styles.footer}>
+                  <Text style={styles.footerText}>Free shipping on orders over $50</Text>
+                </View>
+              </>
+            )}
           </ScrollView>
         </View>
 
-        {/* Page 1: Designs */}
+        {/* Page 1: Designs — data from Firestore; pull-to-refresh supported. */}
         <View style={[styles.page, { width: SCREEN_WIDTH }]}>
           <ScrollView
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
+            refreshControl={refreshControl}
           >
             <View style={styles.hero}>
               <Text style={styles.heroTitle}>Designs</Text>
@@ -631,37 +736,61 @@ export default function MarketplaceTab() {
                 Save your favorites. Apply to any garment.
               </Text>
             </View>
-            <Pressable
-              style={styles.garmentSelector}
-              onPress={() => setGarmentModalOpen(true)}
-            >
-              <Text style={styles.garmentSelectorLabel}>Currently selected Garment</Text>
-              <Text
-                style={[
-                  styles.garmentSelectorValue,
-                  !selectedGarment && styles.garmentSelectorValueMuted,
-                ]}
-              >
-                {selectedGarment ? selectedGarment.name : "Tap to choose…"}
-              </Text>
-              <Ionicons name="chevron-forward" size={20} color={colors.typography500} />
-            </Pressable>
-            <View style={styles.grid}>
-              {DESIGNS.map((design, index) => (
-                <DesignCard
-                  key={design.id}
-                  design={design}
-                  onSaveDesign={handleSaveDesignFromModal}
-                  onPressImage={handlePressDesignImage}
-                  styles={styles}
-                  colors={colors}
-                  entranceDelay={index * 40}
-                />
-              ))}
-            </View>
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>Save designs to your selected garment</Text>
-            </View>
+            {error ? (
+              <View style={styles.footer}>
+                <Text style={[styles.footerText, { color: colors.error500 }]}>{error}</Text>
+                <Button size="sm" variant="outline" onPress={refresh} style={{ marginTop: 12 }}>
+                  <ButtonText>Retry</ButtonText>
+                </Button>
+              </View>
+            ) : loading && designs.length === 0 ? (
+              <View style={[styles.footer, { paddingVertical: 48 }]}>
+                <ActivityIndicator size="large" color={colors.primary500} />
+                <Text style={[styles.footerText, { marginTop: 16 }]}>Loading designs…</Text>
+              </View>
+            ) : (
+              <>
+                <Pressable
+                  style={styles.garmentSelector}
+                  onPress={() => setGarmentModalOpen(true)}
+                >
+                  <Text style={styles.garmentSelectorLabel}>Currently selected Garment</Text>
+                  <Text
+                    style={[
+                      styles.garmentSelectorValue,
+                      !selectedGarment && styles.garmentSelectorValueMuted,
+                    ]}
+                  >
+                    {selectedGarment ? selectedGarment.name : "Tap to choose…"}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={20} color={colors.typography500} />
+                </Pressable>
+                <View style={styles.grid}>
+                  {designs.map((design, index) => {
+                    const { isSaved, savedDesignId } = getSavedState(design.id);
+                    return (
+                      <DesignCard
+                        key={design.id}
+                        design={design}
+                        isSaved={isSaved}
+                        savedDesignId={savedDesignId}
+                        onSaveDesign={handleSaveDesign}
+                        onUnsaveDesign={handleUnsaveDesign}
+                        onPressImage={handlePressDesignImage}
+                        styles={styles}
+                        colors={colors}
+                        entranceDelay={index * 40}
+                        saving={saving}
+                        removing={removingId !== null}
+                      />
+                    );
+                  })}
+                </View>
+                <View style={styles.footer}>
+                  <Text style={styles.footerText}>Save designs to your selected garment</Text>
+                </View>
+              </>
+            )}
           </ScrollView>
         </View>
       </ScrollView>
@@ -821,13 +950,45 @@ export default function MarketplaceTab() {
                   )}
                 </View>
                 <View style={styles.productDetailActions}>
-                  <Button
-                    size="md"
-                    action="primary"
-                    onPress={() => selectedDesignDetail && handleSaveDesignFromModal(selectedDesignDetail)}
-                  >
-                    <ButtonText>Save Design</ButtonText>
-                  </Button>
+                  {selectedDesignDetail && (() => {
+                    const { isSaved, savedDesignId } = getSavedState(selectedDesignDetail.id);
+                    if (!isLoggedIn) {
+                      return (
+                        <Button
+                          size="md"
+                          action="primary"
+                          onPress={() => selectedDesignDetail && handleSaveDesign(selectedDesignDetail)}
+                        >
+                          <ButtonText>Save Design</ButtonText>
+                        </Button>
+                      );
+                    }
+                    if (isSaved && savedDesignId) {
+                      return (
+                        <Button
+                          size="md"
+                          action="secondary"
+                          variant="outline"
+                          onPress={() => handleUnsaveDesign(savedDesignId)}
+                          isDisabled={removingId !== null}
+                        >
+                          <Ionicons name="bookmark" size={20} color={colors.typography500} style={{ marginRight: 8 }} />
+                          <ButtonText>{removingId === savedDesignId ? "Removing…" : "Remove from saved"}</ButtonText>
+                        </Button>
+                      );
+                    }
+                    return (
+                      <Button
+                        size="md"
+                        action="primary"
+                        onPress={() => handleSaveDesign(selectedDesignDetail)}
+                        isDisabled={saving}
+                      >
+                        <Ionicons name="bookmark-outline" size={20} color={colors.typography950} style={{ marginRight: 8 }} />
+                        <ButtonText>{saving ? "Saving…" : "Save Design"}</ButtonText>
+                      </Button>
+                    );
+                  })()}
                 </View>
               </>
             )}

@@ -35,6 +35,7 @@ yarn-error.*
 
 # Firebase config (contains your project credentials)
 lib/firebase.config.ts
+scripts/serviceAccountKey.json
 
 # typescript
 *.tsbuildinfo

@@ -24,4 +24,6 @@ export interface Design {
   sku?: string;
   /** Optional tags for search/filter. */
   tags?: string[];
+  /** If false, hide from marketplace. Default true when omitted. */
+  active?: boolean;
 }

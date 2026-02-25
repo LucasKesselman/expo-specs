@@ -9,6 +9,10 @@ import { useAuth, useAuthState } from "@/hooks/useAuth";
 import { useSavedDesigns } from "@/hooks/useSavedDesigns";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import { useTheme } from "@/contexts/ThemeContext";
+import {
+  createDesignInFirestore,
+  createGarmentInFirestore,
+} from "@/lib/catalogFirestore";
 import type { SavedDesignWithId } from "@/lib/savedDesigns";
 import { useFocusEffect } from "@react-navigation/native";
 import { type Href, useRouter } from "expo-router";
@@ -343,6 +347,291 @@ function UserSettingsSection({
   );
 }
 
+function CreateDesignSection({
+  userEmail,
+  styles,
+  colors,
+}: {
+  userEmail: string;
+  styles: ReturnType<typeof createAccountStyles>;
+  colors: Record<string, string>;
+}) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [image, setImage] = useState("");
+  const [categories, setCategories] = useState("tees, new");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleCreate = async () => {
+    if (!name.trim()) {
+      Alert.alert("Missing field", "Enter a design name.");
+      return;
+    }
+    setError(null);
+    setLoading(true);
+    try {
+      const id = await createDesignInFirestore(userEmail, {
+        name,
+        description: description || undefined,
+        image: image || undefined,
+        categories: categories || undefined,
+      });
+      Alert.alert("Design created", `Design "${name.trim()}" was added. (ID: ${id})`);
+      setName("");
+      setDescription("");
+      setImage("");
+      setCategories("tees, new");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to create design.";
+      setError(message);
+      Alert.alert("Error", message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <View style={styles.settingsSection}>
+      <Text style={styles.settingsSectionTitle}>Create Design</Text>
+      <View style={styles.settingsCard}>
+        <FormControl style={styles.formField}>
+          <FormControlLabel>
+            <FormControlLabelText>Name</FormControlLabelText>
+          </FormControlLabel>
+          <Input variant="outline" size="md" style={styles.formInput}>
+            <InputField
+              placeholder="Design name"
+              value={name}
+              onChangeText={setName}
+              editable={!loading}
+            />
+          </Input>
+        </FormControl>
+        <FormControl style={styles.formField}>
+          <FormControlLabel>
+            <FormControlLabelText>Description</FormControlLabelText>
+          </FormControlLabel>
+          <Input variant="outline" size="md" style={styles.formInput}>
+            <InputField
+              placeholder="Short description"
+              value={description}
+              onChangeText={setDescription}
+              editable={!loading}
+            />
+          </Input>
+        </FormControl>
+        <FormControl style={styles.formField}>
+          <FormControlLabel>
+            <FormControlLabelText>Image URL</FormControlLabelText>
+          </FormControlLabel>
+          <Input variant="outline" size="md" style={styles.formInput}>
+            <InputField
+              placeholder="https://..."
+              value={image}
+              onChangeText={setImage}
+              keyboardType="url"
+              autoCapitalize="none"
+              editable={!loading}
+            />
+          </Input>
+        </FormControl>
+        <FormControl style={styles.formField}>
+          <FormControlLabel>
+            <FormControlLabelText>Categories (comma-separated)</FormControlLabelText>
+          </FormControlLabel>
+          <Input variant="outline" size="md" style={styles.formInput}>
+            <InputField
+              placeholder="tees, new, bestseller"
+              value={categories}
+              onChangeText={setCategories}
+              editable={!loading}
+            />
+          </Input>
+        </FormControl>
+        {error ? <Text style={styles.forgotError}>{error}</Text> : null}
+        <Button
+          size="sm"
+          variant="solid"
+          action="primary"
+          onPress={handleCreate}
+          isDisabled={loading}
+          style={styles.applyButton}
+        >
+          <ButtonText>{loading ? "Creating…" : "Create Design"}</ButtonText>
+        </Button>
+      </View>
+    </View>
+  );
+}
+
+function CreateGarmentSection({
+  userEmail,
+  styles,
+  colors,
+}: {
+  userEmail: string;
+  styles: ReturnType<typeof createAccountStyles>;
+  colors: Record<string, string>;
+}) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [image, setImage] = useState("");
+  const [color, setColor] = useState("White");
+  const [sizes, setSizes] = useState("S, M, L, XL");
+  const [categories, setCategories] = useState("tees, new");
+  const [releaseYear, setReleaseYear] = useState(String(new Date().getFullYear()));
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleCreate = async () => {
+    if (!name.trim()) {
+      Alert.alert("Missing field", "Enter a garment name.");
+      return;
+    }
+    setError(null);
+    setLoading(true);
+    try {
+      const id = await createGarmentInFirestore(userEmail, {
+        name,
+        description: description || undefined,
+        image: image || undefined,
+        color: color || undefined,
+        sizes: sizes || undefined,
+        categories: categories || undefined,
+        releaseYear: releaseYear || undefined,
+      });
+      Alert.alert("Garment created", `"${name.trim()}" was added. (ID: ${id})`);
+      setName("");
+      setDescription("");
+      setImage("");
+      setColor("White");
+      setSizes("S, M, L, XL");
+      setCategories("tees, new");
+      setReleaseYear(String(new Date().getFullYear()));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to create garment.";
+      setError(message);
+      Alert.alert("Error", message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <View style={styles.settingsSection}>
+      <Text style={styles.settingsSectionTitle}>Create Garment</Text>
+      <View style={styles.settingsCard}>
+        <FormControl style={styles.formField}>
+          <FormControlLabel>
+            <FormControlLabelText>Name</FormControlLabelText>
+          </FormControlLabel>
+          <Input variant="outline" size="md" style={styles.formInput}>
+            <InputField
+              placeholder="Garment name"
+              value={name}
+              onChangeText={setName}
+              editable={!loading}
+            />
+          </Input>
+        </FormControl>
+        <FormControl style={styles.formField}>
+          <FormControlLabel>
+            <FormControlLabelText>Description</FormControlLabelText>
+          </FormControlLabel>
+          <Input variant="outline" size="md" style={styles.formInput}>
+            <InputField
+              placeholder="Short description"
+              value={description}
+              onChangeText={setDescription}
+              editable={!loading}
+            />
+          </Input>
+        </FormControl>
+        <FormControl style={styles.formField}>
+          <FormControlLabel>
+            <FormControlLabelText>Image URL</FormControlLabelText>
+          </FormControlLabel>
+          <Input variant="outline" size="md" style={styles.formInput}>
+            <InputField
+              placeholder="https://..."
+              value={image}
+              onChangeText={setImage}
+              keyboardType="url"
+              autoCapitalize="none"
+              editable={!loading}
+            />
+          </Input>
+        </FormControl>
+        <FormControl style={styles.formField}>
+          <FormControlLabel>
+            <FormControlLabelText>Color</FormControlLabelText>
+          </FormControlLabel>
+          <Input variant="outline" size="md" style={styles.formInput}>
+            <InputField
+              placeholder="e.g. White, Black"
+              value={color}
+              onChangeText={setColor}
+              editable={!loading}
+            />
+          </Input>
+        </FormControl>
+        <FormControl style={styles.formField}>
+          <FormControlLabel>
+            <FormControlLabelText>Sizes (comma-separated)</FormControlLabelText>
+          </FormControlLabel>
+          <Input variant="outline" size="md" style={styles.formInput}>
+            <InputField
+              placeholder="XS, S, M, L, XL"
+              value={sizes}
+              onChangeText={setSizes}
+              editable={!loading}
+            />
+          </Input>
+        </FormControl>
+        <FormControl style={styles.formField}>
+          <FormControlLabel>
+            <FormControlLabelText>Categories (comma-separated)</FormControlLabelText>
+          </FormControlLabel>
+          <Input variant="outline" size="md" style={styles.formInput}>
+            <InputField
+              placeholder="tees, new, bestseller"
+              value={categories}
+              onChangeText={setCategories}
+              editable={!loading}
+            />
+          </Input>
+        </FormControl>
+        <FormControl style={styles.formField}>
+          <FormControlLabel>
+            <FormControlLabelText>Release year</FormControlLabelText>
+          </FormControlLabel>
+          <Input variant="outline" size="md" style={styles.formInput}>
+            <InputField
+              placeholder="2024"
+              value={releaseYear}
+              onChangeText={setReleaseYear}
+              keyboardType="number-pad"
+              editable={!loading}
+            />
+          </Input>
+        </FormControl>
+        {error ? <Text style={styles.forgotError}>{error}</Text> : null}
+        <Button
+          size="sm"
+          variant="solid"
+          action="primary"
+          onPress={handleCreate}
+          isDisabled={loading}
+          style={styles.applyButton}
+        >
+          <ButtonText>{loading ? "Creating…" : "Create Garment"}</ButtonText>
+        </Button>
+      </View>
+    </View>
+  );
+}
+
 function createAccountStyles(colors: Record<string, string>) {
   return StyleSheet.create({
     settingsSection: { marginHorizontal: 20, marginBottom: 24 },
@@ -366,6 +655,12 @@ function createAccountStyles(colors: Record<string, string>) {
     },
     applyButton: {
       marginTop: 16,
+    },
+    formField: {
+      marginBottom: 16,
+    },
+    formInput: {
+      marginTop: 4,
     },
     forgotRow: {
       flexDirection: "row",
@@ -519,6 +814,8 @@ export default function AccountTab() {
           <>
             <SessionInfo user={user} colors={colors} />
             <UserSettingsSection styles={styles} colors={colors} userEmail={user.email ?? null} />
+            <CreateDesignSection userEmail={user.email ?? ""} styles={styles} colors={colors} />
+            <CreateGarmentSection userEmail={user.email ?? ""} styles={styles} colors={colors} />
             <SavedDesignsSection
               userId={user.uid}
               savedDesigns={savedDesigns}

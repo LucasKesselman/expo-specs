@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
+import { Timestamp } from "firebase/firestore";
 import type { SavedDesignWithId } from "@/lib/savedDesigns";
 import { getSavedDesignsForUser, removeSavedDesign } from "@/lib/savedDesigns";
+import type { DesignProduct } from "@/types/product";
 
 /**
  * Loads and manages the current user's saved designs from Firestore. Call refresh
- * when the tab gains focus. Use on the account tab to list and remove saved designs.
+ * when the tab gains focus or on pull-to-refresh. Use on the account tab and marketplace.
  *
  * @param userId - Current user uid or null; when null, returns empty list and no loading.
- * @returns savedDesigns, loading, error, refresh, remove, removingId
+ * @returns savedDesigns, loading, error, refresh, remove, addOptimistic, removingId
  */
 export function useSavedDesigns(userId: string | null) {
   const [savedDesigns, setSavedDesigns] = useState<SavedDesignWithId[]>([]);
@@ -51,9 +53,28 @@ export function useSavedDesigns(userId: string | null) {
     [userId]
   );
 
+  /**
+   * Appends a saved design to state without a Firestore read. Use after saveDesign()
+   * succeeds so the bookmark updates immediately (minimal queries).
+   */
+  const addOptimistic = useCallback(
+    (product: DesignProduct, savedDesignId: string) => {
+      setSavedDesigns((prev) => [
+        ...prev,
+        {
+          id: savedDesignId,
+          productId: product.productId,
+          product,
+          savedAt: Timestamp.now(),
+        } as SavedDesignWithId,
+      ]);
+    },
+    []
+  );
+
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  return { savedDesigns, loading, error, refresh, remove, removingId };
+  return { savedDesigns, loading, error, refresh, remove, addOptimistic, removingId };
 }

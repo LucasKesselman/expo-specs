@@ -19,6 +19,7 @@ export const DESIGNS: Design[] = [
     priceAmount: 14.99,
     sku: "DES-ABS-001",
     tags: ["abstract", "minimal"],
+    active: true,
   },
   {
     id: "des_retro_02",
@@ -32,6 +33,7 @@ export const DESIGNS: Design[] = [
     priceAmount: 18.99,
     sku: "DES-RET-002",
     tags: ["retro", "gradient"],
+    active: true,
   },
   {
     id: "des_geo_03",
@@ -45,6 +47,7 @@ export const DESIGNS: Design[] = [
     priceAmount: 12.99,
     sku: "DES-GEO-003",
     tags: ["geometric", "minimal"],
+    active: true,
   },
   {
     id: "des_type_04",
@@ -71,6 +74,7 @@ export const DESIGNS: Design[] = [
     priceAmount: 19.99,
     sku: "DES-BOT-005",
     tags: ["botanical", "line-art"],
+    active: true,
   },
   {
     id: "des_patch_06",
@@ -84,6 +88,7 @@ export const DESIGNS: Design[] = [
     priceAmount: 11.99,
     sku: "DES-PAT-006",
     tags: ["patch", "vintage"],
+    active: true,
   },
   {
     id: "des_splash_07",
@@ -97,6 +102,7 @@ export const DESIGNS: Design[] = [
     priceAmount: 17.99,
     sku: "DES-SPL-007",
     tags: ["ink", "dynamic"],
+    active: true,
   },
   {
     id: "des_minimal_08",
@@ -110,6 +116,7 @@ export const DESIGNS: Design[] = [
     priceAmount: 13.99,
     sku: "DES-LIN-008",
     tags: ["minimal", "line"],
+    active: true,
   },
 ];
 

@@ -6,6 +6,15 @@ service cloud.firestore {
     match /users/{userId}/savedDesigns/{savedDesignId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
-    // All other paths are denied (Firestore denies when no rule matches).
+    // Signed-in users can read and create designs (Create Design on Account).
+    match /Designs/{designId} {
+      allow read, create: if request.auth != null;
+      allow update, delete: if request.auth != null;
+    }
+    // Signed-in users can read and create garments (Create Garment on Account).
+    match /Garments/{garmentId} {
+      allow read, create: if request.auth != null;
+      allow update, delete: if request.auth != null;
+    }
   }
 }

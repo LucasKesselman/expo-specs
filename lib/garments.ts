@@ -18,6 +18,7 @@ export const GARMENTS: Garment[] = [
     image: "https://picsum.photos/seed/tee1/400/400",
     description: "Essential crewneck tee, soft cotton.",
     price: "$24.99",
+    active: true,
   },
   {
     id: "gar_black_hoodie",
@@ -31,6 +32,7 @@ export const GARMENTS: Garment[] = [
     image: "https://picsum.photos/seed/tee2/400/400",
     description: "Heavyweight fleece hoodie.",
     price: "$49.99",
+    active: true,
   },
   {
     id: "gar_navy_crew",
@@ -44,6 +46,7 @@ export const GARMENTS: Garment[] = [
     image: "https://picsum.photos/seed/tee3/400/400",
     description: "Classic navy crewneck.",
     price: "$26.99",
+    active: true,
   },
   {
     id: "gar_grey_oversized",
@@ -57,6 +60,7 @@ export const GARMENTS: Garment[] = [
     image: "https://picsum.photos/seed/tee4/400/400",
     description: "Oversized unisex tee.",
     price: "$32.99",
+    active: true,
   },
   {
     id: "gar_olive_tee",
@@ -70,6 +74,7 @@ export const GARMENTS: Garment[] = [
     image: "https://picsum.photos/seed/tee5/400/400",
     description: "Olive green tee, relaxed fit.",
     price: "$28.99",
+    active: true,
   },
   {
     id: "gar_sand_tee",
@@ -83,6 +88,7 @@ export const GARMENTS: Garment[] = [
     image: "https://picsum.photos/seed/tee6/400/400",
     description: "Soft sand-colored cotton.",
     price: "$25.99",
+    active: true,
   },
   {
     id: "gar_burgundy_hoodie",
@@ -96,6 +102,7 @@ export const GARMENTS: Garment[] = [
     image: "https://picsum.photos/seed/tee7/400/400",
     description: "Rich burgundy fleece.",
     price: "$54.99",
+    active: true,
   },
   {
     id: "gar_white_crop",
@@ -109,5 +116,6 @@ export const GARMENTS: Garment[] = [
     image: "https://picsum.photos/seed/tee8/400/400",
     description: "Cropped fit, high cotton content.",
     price: "$22.99",
+    active: true,
   },
 ];

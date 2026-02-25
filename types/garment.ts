@@ -25,4 +25,6 @@ export interface Garment {
   description?: string;
   /** Optional display price. */
   price?: string;
+  /** If false, hide from marketplace. Default true when omitted. */
+  active?: boolean;
 }

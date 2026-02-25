@@ -3,11 +3,14 @@ import { useAuthState } from "@/hooks/useAuth";
 import { saveDesignForUser } from "@/lib/savedDesigns";
 import type { DesignProduct } from "@/types/product";
 
-type SaveDesignResult = { success: true } | { success: false; error: string };
+export type SaveDesignResult =
+  | { success: true; savedDesignId: string }
+  | { success: false; error: string };
 
 /**
  * Saves a design to the current user's Firestore savedDesigns collection.
  * Requires the user to be signed in. Use in marketplace when the user taps "Save Design".
+ * Returns the new Firestore document id on success for optimistic UI updates.
  *
  * @returns saveDesign(product), saving (boolean), isLoggedIn (boolean)
  */
@@ -22,8 +25,8 @@ export function useSaveDesign() {
       }
       setSaving(true);
       try {
-        await saveDesignForUser(user.uid, product);
-        return { success: true };
+        const ref = await saveDesignForUser(user.uid, product);
+        return { success: true, savedDesignId: ref.id };
       } catch (err) {
         const message = err instanceof Error ? err.message : "Failed to save design.";
         return { success: false, error: message };
