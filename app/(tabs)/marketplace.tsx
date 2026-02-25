@@ -7,10 +7,13 @@ import {
   ModalCloseButton,
   ModalHeader,
 } from "@/components/ui/modal";
+import { DESIGNS, designToDesignProduct } from "@/lib/designs";
+import { GARMENTS } from "@/lib/garments";
 import { useSaveDesign } from "@/hooks/useSaveDesign";
 import { useThemeColors } from "@/hooks/useThemeColors";
-import { PRODUCTS } from "@/lib/products";
-import type { DesignProduct } from "@/types/product";
+import type { Design } from "@/types/design";
+import type { Garment } from "@/types/garment";
+import { CheckoutModal, type CartItem } from "@/components/checkout";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Alert,
@@ -25,7 +28,7 @@ import {
   View,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Motion, AnimatePresence } from "@legendapp/motion";
+import { Motion } from "@legendapp/motion";
 import { useMemo, useRef, useState } from "react";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -35,7 +38,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
  * Users can save designs when signed in; garment picker and FAB for "Create new design".
  */
 
-/** Example garments the user "owns" for the Designs section */
+/** Garments the user can select to apply designs to (Designs section). */
 const MY_GARMENTS = [
   { id: "g1", name: "Classic White Tee" },
   { id: "g2", name: "Black Hoodie" },
@@ -44,15 +47,21 @@ const MY_GARMENTS = [
   { id: "g5", name: "Olive Graphic Tee" },
 ];
 
-function ProductCard({
-  product,
-  onSaveDesign,
+type MarketplaceStyles = ReturnType<typeof createMarketplaceStyles>;
+
+function GarmentCard({
+  garment,
+  onPressImage,
+  onAddToCart,
   styles: cardStyles,
+  colors,
   entranceDelay = 0,
 }: {
-  product: DesignProduct;
-  onSaveDesign: (product: DesignProduct) => void;
-  styles: ReturnType<typeof createMarketplaceStyles>;
+  garment: Garment;
+  onPressImage: (garment: Garment) => void;
+  onAddToCart: (garment: Garment) => void;
+  styles: MarketplaceStyles;
+  colors: Record<string, string>;
   entranceDelay?: number;
 }) {
   return (
@@ -62,24 +71,85 @@ function ProductCard({
       animate={{ opacity: 1 }}
       transition={{ type: "timing", duration: 220, delay: entranceDelay }}
     >
-      <View style={cardStyles.cardImageWrap}>
-        <Image source={{ uri: product.image }} style={cardStyles.cardImage} />
-      </View>
+      <Pressable
+        style={cardStyles.cardImageWrap}
+        onPress={() => onPressImage(garment)}
+        accessibilityRole="button"
+        accessibilityLabel={`View details for ${garment.name}`}
+      >
+        <Image source={{ uri: garment.image }} style={cardStyles.cardImage} />
+      </Pressable>
       <Text style={cardStyles.cardName} numberOfLines={2}>
-        {product.name}
+        {garment.name}
       </Text>
-      {product.categories.length > 0 && (
+      {garment.categories.length > 0 && (
         <View style={cardStyles.cardCategories}>
-          {product.categories.slice(0, 2).map((cat) => (
+          {garment.categories.slice(0, 2).map((cat) => (
             <View key={cat} style={cardStyles.categoryChip}>
               <Text style={cardStyles.categoryChipText}>{cat}</Text>
             </View>
           ))}
         </View>
       )}
-      <Text style={cardStyles.cardPrice}>{product.price}</Text>
+      <View style={cardStyles.cardPriceRow}>
+        <Text style={cardStyles.cardPrice}>{garment.price ?? "—"}</Text>
+        <Button
+          size="sm"
+          action="primary"
+          onPress={() => onAddToCart(garment)}
+          accessibilityLabel={`Add ${garment.name} to cart`}
+        >
+          <Ionicons name="add" size={18} color={colors.typography950} />
+          <Ionicons name="cart" size={18} color={colors.typography950} />
+        </Button>
+      </View>
+    </Motion.View>
+  );
+}
+
+function DesignCard({
+  design,
+  onSaveDesign,
+  onPressImage,
+  styles: cardStyles,
+  entranceDelay = 0,
+}: {
+  design: Design;
+  onSaveDesign: (design: Design) => void;
+  onPressImage: (design: Design) => void;
+  styles: MarketplaceStyles;
+  entranceDelay?: number;
+}) {
+  return (
+    <Motion.View
+      style={cardStyles.card}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ type: "timing", duration: 220, delay: entranceDelay }}
+    >
+      <Pressable
+        style={cardStyles.cardImageWrap}
+        onPress={() => onPressImage(design)}
+        accessibilityRole="button"
+        accessibilityLabel={`View details for ${design.name}`}
+      >
+        <Image source={{ uri: design.image }} style={cardStyles.cardImage} />
+      </Pressable>
+      <Text style={cardStyles.cardName} numberOfLines={2}>
+        {design.name}
+      </Text>
+      {design.categories.length > 0 && (
+        <View style={cardStyles.cardCategories}>
+          {design.categories.slice(0, 2).map((cat) => (
+            <View key={cat} style={cardStyles.categoryChip}>
+              <Text style={cardStyles.categoryChipText}>{cat}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+      <Text style={cardStyles.cardPrice}>{design.price}</Text>
       <View style={cardStyles.cardButtonWrap}>
-        <Button size="sm" action="primary" onPress={() => onSaveDesign(product)}>
+        <Button size="sm" action="primary" onPress={() => onSaveDesign(design)}>
           <ButtonText>Save Design</ButtonText>
         </Button>
       </View>
@@ -95,6 +165,8 @@ function createMarketplaceStyles(colors: Record<string, string>) {
     },
     tabStrip: {
       flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
       paddingHorizontal: 16,
       paddingVertical: 12,
       gap: 4,
@@ -154,6 +226,38 @@ function createMarketplaceStyles(colors: Record<string, string>) {
     modalTitle: {
       fontSize: 18,
       fontWeight: "600",
+      color: colors.typography950,
+    },
+    modalHeaderRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      width: "100%",
+    },
+    modalBackButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      paddingVertical: 8,
+      paddingRight: 12,
+    },
+    modalBackButtonText: {
+      fontSize: 16,
+      color: colors.primary500,
+      fontWeight: "500",
+    },
+    modalDetailMetaRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginTop: 6,
+    },
+    modalDetailLabel: {
+      fontSize: 13,
+      color: colors.typography500,
+    },
+    modalDetailValue: {
+      fontSize: 15,
       color: colors.typography950,
     },
     garmentOption: {
@@ -255,8 +359,14 @@ function createMarketplaceStyles(colors: Record<string, string>) {
       fontSize: 14,
       fontWeight: "600",
       color: colors.primary500,
+    },
+    cardPriceRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
       marginHorizontal: 10,
-      marginTop: 4,
+      marginTop: 10,
+      gap: 8,
     },
     cardButtonWrap: {
       marginHorizontal: 10,
@@ -293,6 +403,23 @@ function createMarketplaceStyles(colors: Record<string, string>) {
       shadowRadius: 4,
       elevation: 4,
     },
+    fabBadge: {
+      position: "absolute",
+      top: -4,
+      right: -4,
+      minWidth: 20,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: "#e53935",
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 6,
+    },
+    fabBadgeText: {
+      fontSize: 11,
+      fontWeight: "700",
+      color: "#fff",
+    },
     fabPressed: {
       opacity: 0.9,
     },
@@ -312,6 +439,39 @@ function createMarketplaceStyles(colors: Record<string, string>) {
       fontSize: 15,
       fontWeight: "600",
     },
+    productDetailImage: {
+      width: "100%",
+      aspectRatio: 1,
+      backgroundColor: colors.background100,
+      borderRadius: 12,
+    },
+    productDetailName: {
+      fontSize: 20,
+      fontWeight: "700",
+      color: colors.typography950,
+      marginTop: 16,
+    },
+    productDetailDescription: {
+      fontSize: 15,
+      color: colors.typography600,
+      marginTop: 8,
+      lineHeight: 22,
+    },
+    productDetailMeta: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+      marginTop: 12,
+    },
+    productDetailPrice: {
+      fontSize: 18,
+      fontWeight: "600",
+      color: colors.primary500,
+    },
+    productDetailActions: {
+      marginTop: 20,
+      gap: 10,
+    },
   });
 }
 
@@ -319,11 +479,53 @@ export default function MarketplaceTab() {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const styles = useMemo(() => createMarketplaceStyles(colors), [colors]);
-  const [showCreateDesign, setShowCreateDesign] = useState(false);
   const [currentSection, setCurrentSection] = useState<0 | 1>(0);
   const [selectedGarment, setSelectedGarment] = useState<typeof MY_GARMENTS[0] | null>(null);
   const [garmentModalOpen, setGarmentModalOpen] = useState(false);
+  const [selectedGarmentDetail, setSelectedGarmentDetail] = useState<Garment | null>(null);
+  const [selectedDesignDetail, setSelectedDesignDetail] = useState<Design | null>(null);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
   const { saveDesign, saving, isLoggedIn } = useSaveDesign();
+
+  const handlePressGarmentImage = (garment: Garment) => {
+    setSelectedGarmentDetail(garment);
+  };
+  const handleAddToCart = (garment: Garment) => {
+    setCart((prev) => {
+      const i = prev.findIndex((x) => x.garment.id === garment.id);
+      if (i >= 0) {
+        const next = [...prev];
+        next[i] = { ...next[i], quantity: next[i].quantity + 1 };
+        return next;
+      }
+      return [...prev, { garment, quantity: 1 }];
+    });
+    Alert.alert("Added to cart", `"${garment.name}" added. Tap the cart to checkout.`, [{ text: "OK" }]);
+  };
+  const cartItemCount = cart.reduce((s, i) => s + i.quantity, 0);
+  const handleRemoveFromCart = (garmentId: string) => {
+    setCart((prev) => prev.filter((x) => x.garment.id !== garmentId));
+  };
+  const handlePressDesignImage = (design: Design) => {
+    setSelectedDesignDetail(design);
+  };
+  const handleSaveDesignFromModal = async (design: Design) => {
+    if (!isLoggedIn) {
+      Alert.alert(
+        "Sign in to save",
+        "You need to be logged in to save designs to your account."
+      );
+      return;
+    }
+    const result = await saveDesign(designToDesignProduct(design));
+    if (result.success) {
+      Alert.alert("Saved", `"${design.name}" has been saved to your designs.`);
+      setSelectedDesignDetail(null);
+    } else {
+      Alert.alert("Couldn't save", result.error);
+    }
+  };
   const horizontalScrollRef = useRef<ScrollView>(null);
 
   const onHorizontalScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -338,26 +540,6 @@ export default function MarketplaceTab() {
       x: index * SCREEN_WIDTH,
       animated: true,
     });
-  };
-
-  const handleCreateNewDesign = () => {
-    Alert.alert("placeholder DB CREATE action");
-  };
-
-  const handleSaveDesign = async (product: DesignProduct) => {
-    if (!isLoggedIn) {
-      Alert.alert(
-        "Sign in to save",
-        "You need to be logged in to save designs to your account."
-      );
-      return;
-    }
-    const result = await saveDesign(product);
-    if (result.success) {
-      Alert.alert("Saved", `"${product.name}" has been saved to your designs.`);
-    } else {
-      Alert.alert("Couldn't save", result.error);
-    }
   };
 
   return (
@@ -405,14 +587,15 @@ export default function MarketplaceTab() {
                 Quality tees, made simple.
               </Text>
             </View>
-            <Text style={styles.sectionTitle}>Shop tees</Text>
             <View style={styles.grid}>
-              {PRODUCTS.map((product, index) => (
-                <ProductCard
-                  key={product.productId}
-                  product={product}
-                  onSaveDesign={handleSaveDesign}
+              {GARMENTS.map((garment, index) => (
+                <GarmentCard
+                  key={garment.id}
+                  garment={garment}
+                  onPressImage={handlePressGarmentImage}
+                  onAddToCart={handleAddToCart}
                   styles={styles}
+                  colors={colors}
                   entranceDelay={index * 40}
                 />
               ))}
@@ -430,6 +613,12 @@ export default function MarketplaceTab() {
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
+            <View style={styles.hero}>
+              <Text style={styles.heroTitle}>Designs</Text>
+              <Text style={styles.heroSubtitle}>
+                Save your favorites. Apply to any garment.
+              </Text>
+            </View>
             <Pressable
               style={styles.garmentSelector}
               onPress={() => setGarmentModalOpen(true)}
@@ -445,13 +634,13 @@ export default function MarketplaceTab() {
               </Text>
               <Ionicons name="chevron-forward" size={20} color={colors.typography500} />
             </Pressable>
-            <Text style={styles.sectionTitle}>Designs</Text>
             <View style={styles.grid}>
-              {PRODUCTS.map((product, index) => (
-                <ProductCard
-                  key={product.productId}
-                  product={product}
-                  onSaveDesign={handleSaveDesign}
+              {DESIGNS.map((design, index) => (
+                <DesignCard
+                  key={design.id}
+                  design={design}
+                  onSaveDesign={handleSaveDesignFromModal}
+                  onPressImage={handlePressDesignImage}
                   styles={styles}
                   entranceDelay={index * 40}
                 />
@@ -463,6 +652,175 @@ export default function MarketplaceTab() {
           </ScrollView>
         </View>
       </ScrollView>
+
+      {/* Garment detail modal */}
+      <Modal
+        isOpen={selectedGarmentDetail !== null}
+        onClose={() => setSelectedGarmentDetail(null)}
+        size="lg"
+      >
+        <ModalBackdrop />
+        <ModalContent>
+          <ModalHeader>
+            <View style={styles.modalHeaderRow}>
+              <Pressable
+                style={styles.modalBackButton}
+                onPress={() => setSelectedGarmentDetail(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
+              >
+                <Ionicons name="chevron-back" size={22} color={colors.primary500} />
+                <Text style={styles.modalBackButtonText}>Back</Text>
+              </Pressable>
+              <ModalCloseButton onPress={() => setSelectedGarmentDetail(null)} />
+            </View>
+          </ModalHeader>
+          <ModalBody>
+            {selectedGarmentDetail && (
+              <>
+                <Image
+                  source={{ uri: selectedGarmentDetail.image }}
+                  style={styles.productDetailImage}
+                  resizeMode="cover"
+                />
+                <Text style={styles.productDetailName}>{selectedGarmentDetail.name}</Text>
+                {selectedGarmentDetail.description != null && (
+                  <Text style={styles.productDetailDescription}>
+                    {selectedGarmentDetail.description}
+                  </Text>
+                )}
+                <View style={styles.productDetailMeta}>
+                  {selectedGarmentDetail.price != null && (
+                    <Text style={styles.productDetailPrice}>
+                      {selectedGarmentDetail.price}
+                    </Text>
+                  )}
+                  <View style={styles.modalDetailMetaRow}>
+                    <Text style={styles.modalDetailLabel}>Color:</Text>
+                    <Text style={styles.modalDetailValue}>{selectedGarmentDetail.color}</Text>
+                  </View>
+                  <View style={styles.modalDetailMetaRow}>
+                    <Text style={styles.modalDetailLabel}>SKU:</Text>
+                    <Text style={styles.modalDetailValue}>{selectedGarmentDetail.sku}</Text>
+                  </View>
+                  <View style={styles.modalDetailMetaRow}>
+                    <Text style={styles.modalDetailLabel}>Author:</Text>
+                    <Text style={styles.modalDetailValue}>{selectedGarmentDetail.author}</Text>
+                  </View>
+                  <View style={styles.modalDetailMetaRow}>
+                    <Text style={styles.modalDetailLabel}>Year:</Text>
+                    <Text style={styles.modalDetailValue}>
+                      {selectedGarmentDetail.releaseYear}
+                    </Text>
+                  </View>
+                  <View style={styles.modalDetailMetaRow}>
+                    <Text style={styles.modalDetailLabel}>Sizes:</Text>
+                    <Text style={styles.modalDetailValue}>
+                      {selectedGarmentDetail.sizes.join(", ")}
+                    </Text>
+                  </View>
+                  {selectedGarmentDetail.categories.length > 0 && (
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                      {selectedGarmentDetail.categories.map((cat) => (
+                        <View key={cat} style={styles.categoryChip}>
+                          <Text style={styles.categoryChipText}>{cat}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+                <View style={styles.productDetailActions}>
+                  <Button
+                    size="md"
+                    action="primary"
+                    onPress={() => {
+                      handleAddToCart(selectedGarmentDetail);
+                      setSelectedGarmentDetail(null);
+                    }}
+                    accessibilityLabel={`Add ${selectedGarmentDetail.name} to cart`}
+                  >
+                    <Ionicons name="add" size={20} color={colors.typography950} />
+                    <Ionicons name="cart" size={20} color={colors.typography950} />
+                  </Button>
+                </View>
+              </>
+            )}
+          </ModalBody>
+        </ModalContent>
+      </Modal>
+
+      {/* Design detail modal */}
+      <Modal
+        isOpen={selectedDesignDetail !== null}
+        onClose={() => setSelectedDesignDetail(null)}
+        size="lg"
+      >
+        <ModalBackdrop />
+        <ModalContent>
+          <ModalHeader>
+            <View style={styles.modalHeaderRow}>
+              <Pressable
+                style={styles.modalBackButton}
+                onPress={() => setSelectedDesignDetail(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
+              >
+                <Ionicons name="chevron-back" size={22} color={colors.primary500} />
+                <Text style={styles.modalBackButtonText}>Back</Text>
+              </Pressable>
+              <ModalCloseButton onPress={() => setSelectedDesignDetail(null)} />
+            </View>
+          </ModalHeader>
+          <ModalBody>
+            {selectedDesignDetail && (
+              <>
+                <Image
+                  source={{ uri: selectedDesignDetail.image }}
+                  style={styles.productDetailImage}
+                  resizeMode="cover"
+                />
+                <Text style={styles.productDetailName}>{selectedDesignDetail.name}</Text>
+                <Text style={styles.productDetailDescription}>
+                  {selectedDesignDetail.description}
+                </Text>
+                <View style={styles.productDetailMeta}>
+                  <Text style={styles.productDetailPrice}>
+                    {selectedDesignDetail.price}
+                  </Text>
+                  <View style={styles.modalDetailMetaRow}>
+                    <Text style={styles.modalDetailLabel}>Author:</Text>
+                    <Text style={styles.modalDetailValue}>{selectedDesignDetail.author}</Text>
+                  </View>
+                  <View style={styles.modalDetailMetaRow}>
+                    <Text style={styles.modalDetailLabel}>Created:</Text>
+                    <Text style={styles.modalDetailValue}>
+                      {new Date(selectedDesignDetail.created).toLocaleDateString()}
+                    </Text>
+                  </View>
+                  {selectedDesignDetail.categories.length > 0 && (
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                      {selectedDesignDetail.categories.map((cat) => (
+                        <View key={cat} style={styles.categoryChip}>
+                          <Text style={styles.categoryChipText}>{cat}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+                <View style={styles.productDetailActions}>
+                  <Button
+                    size="md"
+                    action="primary"
+                    onPress={() => selectedDesignDetail && handleSaveDesignFromModal(selectedDesignDetail)}
+                  >
+                    <ButtonText>Save Design</ButtonText>
+                  </Button>
+                </View>
+              </>
+            )}
+          </ModalBody>
+        </ModalContent>
+      </Modal>
 
       {/* Garment picker modal */}
       <Modal isOpen={garmentModalOpen} onClose={() => setGarmentModalOpen(false)} size="md">
@@ -502,7 +860,15 @@ export default function MarketplaceTab() {
         </ModalContent>
       </Modal>
 
-      {/* Floating + button and create design - fixed, only on this page */}
+      {/* Checkout modal */}
+      <CheckoutModal
+        isOpen={checkoutModalOpen}
+        onClose={() => setCheckoutModalOpen(false)}
+        cart={cart}
+        onRemoveItem={handleRemoveFromCart}
+      />
+
+      {/* Cart FAB with badge */}
       <View
         style={[
           styles.fabContainer,
@@ -513,34 +879,21 @@ export default function MarketplaceTab() {
         ]}
         pointerEvents="box-none"
       >
-        <AnimatePresence>
-          {showCreateDesign && (
-            <Motion.View
-              key="create-design-btn"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ type: "timing", duration: 200 }}
-              style={{ marginBottom: 4 }}
-            >
-              <Pressable
-                style={styles.createDesignButton}
-                onPress={handleCreateNewDesign}
-              >
-                <Text style={styles.createDesignButtonText}>Create new design</Text>
-              </Pressable>
-            </Motion.View>
-          )}
-        </AnimatePresence>
         <Pressable
-          style={({ pressed }) => [
-            styles.fab,
-            pressed && styles.fabPressed,
-          ]}
-          onPress={() => setShowCreateDesign((prev) => !prev)}
+          style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
+          onPress={() => setCheckoutModalOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel={cartItemCount > 0 ? `Cart has ${cartItemCount} items` : "Open cart"}
         >
           <View style={[styles.fabCircle, saving && { opacity: 0.7 }]}>
-            <Ionicons name="add" size={28} color={colors.typography950} />
+            <Ionicons name="cart" size={26} color={colors.typography950} />
+            {cartItemCount >= 1 && (
+              <View style={styles.fabBadge}>
+                <Text style={styles.fabBadgeText}>
+                  {cartItemCount > 99 ? "99+" : cartItemCount}
+                </Text>
+              </View>
+            )}
           </View>
         </Pressable>
       </View>

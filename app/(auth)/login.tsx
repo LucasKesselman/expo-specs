@@ -10,15 +10,23 @@ import { useAuth, useAuthState } from "@/hooks/useAuth";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import { type Href, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
+  LayoutAnimation,
   Platform,
+  Pressable,
   ScrollView,
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+
+const REMEMBER_EMAIL_KEY = "@login/remember_email";
 
 /**
  * Login screen: email/password login and signup, forgot password, and Google sign-in (modal).
@@ -26,14 +34,14 @@ import Ionicons from "@expo/vector-icons/Ionicons";
  */
 type Mode = "login" | "signup" | "forgot";
 
-// Top-aligned layout so content doesn't jump when keyboard opens or on scroll
-const SCROLL_CONTENT_STYLE = {
+// Base scroll content; centering is applied conditionally when keyboard is hidden
+const getScrollContentStyle = (keyboardVisible: boolean): React.ComponentProps<typeof ScrollView>["contentContainerStyle"] => ({
   flexGrow: 1,
-  paddingTop: 48,
-  paddingBottom: 48,
+  justifyContent: keyboardVisible ? "flex-start" : "center",
+  paddingVertical: 48,
   paddingHorizontal: 24,
-  alignItems: "center" as const,
-};
+  alignItems: "center",
+});
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -72,8 +80,39 @@ export default function LoginScreen() {
   const [forgotSent, setForgotSent] = useState(false);
   const [showGoogleModal, setShowGoogleModal] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const hasCompletedLoginThisSession = useRef(false);
   const hasShownAlreadyLoggedInAlert = useRef(false);
+  const insets = useSafeAreaInsets();
+
+  // Smooth layout change when keyboard shows/hides (iOS)
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvent, () => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setKeyboardVisible(true);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setKeyboardVisible(false);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  // Load remembered email on mount
+  useEffect(() => {
+    AsyncStorage.getItem(REMEMBER_EMAIL_KEY).then((saved) => {
+      if (saved != null && saved.length > 0) {
+        setEmail(saved);
+        setRememberMe(true);
+      }
+    });
+  }, []);
 
   // Sticky session: already logged in → alert and go to account; fresh login → just go to account
   useEffect(() => {
@@ -133,17 +172,28 @@ export default function LoginScreen() {
     }
     try {
       if (mode === "login") {
+        hasCompletedLoginThisSession.current = true; // set before await so effect sees it when user updates
         await login(email.trim(), password);
-        hasCompletedLoginThisSession.current = true;
+        if (rememberMe) {
+          await AsyncStorage.setItem(REMEMBER_EMAIL_KEY, email.trim());
+        } else {
+          await AsyncStorage.removeItem(REMEMBER_EMAIL_KEY);
+        }
         Alert.alert("Success", "You're logged in.");
         // Redirect happens via useEffect when Firebase auth state updates
       } else {
+        hasCompletedLoginThisSession.current = true; // set before await so effect sees it when user updates
         await signUp(email.trim(), password);
-        hasCompletedLoginThisSession.current = true;
+        if (rememberMe) {
+          await AsyncStorage.setItem(REMEMBER_EMAIL_KEY, email.trim());
+        } else {
+          await AsyncStorage.removeItem(REMEMBER_EMAIL_KEY);
+        }
         Alert.alert("Success", "Account created. You're logged in.");
         // Redirect happens via useEffect when Firebase auth state updates
       }
     } catch {
+      hasCompletedLoginThisSession.current = false; // reset so we don't treat as success if they retry
       // Error shown via useAuth error + useEffect Alert
     }
   };
@@ -163,19 +213,19 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: "#f8fafc" }}
+      style={{ flex: 1, backgroundColor: colors.background0 }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
+      keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
     >
       <ScrollView
-        contentContainerStyle={SCROLL_CONTENT_STYLE}
+        contentContainerStyle={getScrollContentStyle(keyboardVisible)}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
       >
-        <View style={CARD_STYLE}>
-          <Text style={HEADING_STYLE}>{title}</Text>
-          <Text style={SUBTEXT_STYLE}>{subtitle}</Text>
+        <View style={cardStyle}>
+          <Text style={headingStyle}>{title}</Text>
+          <Text style={subtextStyle}>{subtitle}</Text>
 
           {forgotSent ? (
             <View style={{ gap: 16, marginTop: 8 }}>
@@ -216,7 +266,7 @@ export default function LoginScreen() {
                       <Ionicons
                         name={showPassword ? "eye-off-outline" : "eye-outline"}
                         size={20}
-                        color="#64748b"
+                        color={colors.typography500}
                       />
                     </InputSlot>
                   </Input>
@@ -247,7 +297,19 @@ export default function LoginScreen() {
                     marginBottom: 20,
                   }}
                 >
-                  <Text style={{ fontSize: 13, color: colors.typography500 }}>Remember me</Text>
+                  <Pressable
+                    onPress={() => setRememberMe((prev) => !prev)}
+                    style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                    hitSlop={8}
+                    disabled={loading}
+                  >
+                    <Ionicons
+                      name={rememberMe ? "checkbox" : "checkbox-outline"}
+                      size={22}
+                      color={rememberMe ? colors.primary500 : colors.typography500}
+                    />
+                    <Text style={{ fontSize: 13, color: colors.typography500 }}>Remember me</Text>
+                  </Pressable>
                   <Button
                     variant="link"
                     size="sm"
@@ -279,6 +341,7 @@ export default function LoginScreen() {
                   size="sm"
                   style={{ width: "100%", marginBottom: 12 }}
                 >
+                  <MaterialCommunityIcons name="google" size={20} color={colors.typography950} />
                   <ButtonText>Sign in with Google</ButtonText>
                 </Button>
               )}
@@ -304,9 +367,9 @@ export default function LoginScreen() {
             variant="outline"
             action="secondary"
             size="sm"
-            onPress={() => router.replace("/(tabs)" as Href)}
+            onPress={() => router.replace("/(auth)/landing-page" as Href)}
           >
-            <ButtonText>Back to homepage</ButtonText>
+            <ButtonText>Back to landing page</ButtonText>
           </Button>
         </View>
       </ScrollView>
