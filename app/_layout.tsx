@@ -3,6 +3,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 
 import { GluestackUIProvider } from "@/components/ui/gluestack-ui-provider";
+import { SavedDesignsProvider } from "@/contexts/SavedDesignsContext";
 import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
 import "@/global.css";
 
@@ -16,12 +17,14 @@ function ThemeableGluestack() {
   );
 }
 
-/** Root layout: SafeArea, theme persistence, Gluestack, and stack router. */
+/** Root layout: SafeArea, theme persistence, Gluestack, shared saved-designs state, and stack router. */
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <ThemeableGluestack />
+        <SavedDesignsProvider>
+          <ThemeableGluestack />
+        </SavedDesignsProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

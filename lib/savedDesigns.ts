@@ -8,6 +8,9 @@ import {
   addDoc,
   getDocs,
   deleteDoc,
+  query,
+  where,
+  limit,
   serverTimestamp,
   type DocumentReference,
   type Timestamp,
@@ -69,14 +72,24 @@ export async function getSavedDesignsForUser(
 
 /**
  * Saves a design to the current user's saved designs in Firestore.
- * Associates the design with the user via users/{userId}/savedDesigns.
- * @returns The Firestore document reference of the new saved design
+ * If the user already has a saved design with the same productId, returns that
+ * document's reference (no duplicate). Otherwise creates a new document.
+ * @returns The Firestore document reference (existing or newly created)
  */
 export async function saveDesignForUser(
   userId: string,
   product: DesignProduct
 ): Promise<DocumentReference> {
   const savedDesigns = userSavedDesignsRef(userId);
+  const existing = query(
+    savedDesigns,
+    where("productId", "==", product.productId),
+    limit(1)
+  );
+  const snapshot = await getDocs(existing);
+  if (!snapshot.empty) {
+    return snapshot.docs[0].ref;
+  }
   const docRef = await addDoc(savedDesigns, {
     productId: product.productId,
     product: {

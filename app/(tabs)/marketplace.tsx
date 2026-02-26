@@ -8,10 +8,10 @@ import {
   ModalHeader,
 } from "@/components/ui/modal";
 import { designToDesignProduct } from "@/lib/designs";
+import { useSavedDesignsContext } from "@/contexts/SavedDesignsContext";
 import { useAuthState } from "@/hooks/useAuth";
 import { useCatalogFromFirestore } from "@/hooks/useCatalogFromFirestore";
 import { useSaveDesign } from "@/hooks/useSaveDesign";
-import { useSavedDesigns } from "@/hooks/useSavedDesigns";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import type { Design } from "@/types/design";
 import type { Garment } from "@/types/garment";
@@ -35,7 +35,7 @@ import {
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Motion } from "@legendapp/motion";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -129,7 +129,6 @@ function DesignCard({
   colors,
   entranceDelay = 0,
   saving,
-  removing,
 }: {
   design: Design;
   isSaved: boolean;
@@ -141,9 +140,11 @@ function DesignCard({
   colors: Record<string, string>;
   entranceDelay?: number;
   saving?: boolean;
-  removing?: boolean;
 }) {
   const handleBookmarkPress = () => {
+    if (Platform.OS === "ios" || Platform.OS === "android") {
+      Haptics.selectionAsync();
+    }
     if (isSaved && savedDesignId) onUnsaveDesign(savedDesignId);
     else onSaveDesign(design);
   };
@@ -182,7 +183,7 @@ function DesignCard({
           action={isSaved ? "secondary" : "primary"}
           variant={isSaved ? "outline" : "solid"}
           onPress={handleBookmarkPress}
-          isDisabled={saving || removing}
+          isDisabled={saving}
           accessibilityLabel={
             isSaved
               ? `Remove ${design.name} from saved`
@@ -540,8 +541,7 @@ export default function MarketplaceTab() {
     refresh: refreshSavedDesigns,
     remove: removeSavedDesign,
     addOptimistic,
-    removingId,
-  } = useSavedDesigns(user?.uid ?? null);
+  } = useSavedDesignsContext();
   const [currentSection, setCurrentSection] = useState<0 | 1>(0);
   const [selectedGarment, setSelectedGarment] = useState<typeof MY_GARMENTS[0] | null>(null);
   const [garmentModalOpen, setGarmentModalOpen] = useState(false);
@@ -549,6 +549,7 @@ export default function MarketplaceTab() {
   const [selectedDesignDetail, setSelectedDesignDetail] = useState<Design | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
+  const [savingDesignId, setSavingDesignId] = useState<string | null>(null);
   const { saveDesign, saving, isLoggedIn } = useSaveDesign();
 
   /** Saved state for a design (auth-only). Used to show bookmark toggled and to unsave. */
@@ -614,11 +615,16 @@ export default function MarketplaceTab() {
       );
       return;
     }
-    const result = await saveDesign(designToDesignProduct(design));
-    if (result.success) {
-      addOptimistic(designToDesignProduct(design), result.savedDesignId);
-    } else {
-      Alert.alert("Couldn't save", result.error);
+    setSavingDesignId(design.id);
+    try {
+      const result = await saveDesign(designToDesignProduct(design));
+      if (result.success) {
+        addOptimistic(designToDesignProduct(design), result.savedDesignId);
+      } else {
+        Alert.alert("Couldn't save", result.error);
+      }
+    } finally {
+      setSavingDesignId(null);
     }
   };
 
@@ -715,7 +721,7 @@ export default function MarketplaceTab() {
                   ))}
                 </View>
                 <View style={styles.footer}>
-                  <Text style={styles.footerText}>Free shipping on orders over $50</Text>
+                  <Text style={styles.footerText}>ArtieApparel®</Text>
                 </View>
               </>
             )}
@@ -780,14 +786,13 @@ export default function MarketplaceTab() {
                         styles={styles}
                         colors={colors}
                         entranceDelay={index * 40}
-                        saving={saving}
-                        removing={removingId !== null}
+                        saving={saving && savingDesignId === design.id}
                       />
                     );
                   })}
                 </View>
                 <View style={styles.footer}>
-                  <Text style={styles.footerText}>Save designs to your selected garment</Text>
+                  <Text style={styles.footerText}>ArtieApparel®</Text>
                 </View>
               </>
             )}
@@ -952,12 +957,19 @@ export default function MarketplaceTab() {
                 <View style={styles.productDetailActions}>
                   {selectedDesignDetail && (() => {
                     const { isSaved, savedDesignId } = getSavedState(selectedDesignDetail.id);
+                    const onModalBookmarkPress = () => {
+                      if (Platform.OS === "ios" || Platform.OS === "android") {
+                        Haptics.selectionAsync();
+                      }
+                      if (isSaved && savedDesignId) handleUnsaveDesign(savedDesignId);
+                      else handleSaveDesign(selectedDesignDetail);
+                    };
                     if (!isLoggedIn) {
                       return (
                         <Button
                           size="md"
                           action="primary"
-                          onPress={() => selectedDesignDetail && handleSaveDesign(selectedDesignDetail)}
+                          onPress={onModalBookmarkPress}
                         >
                           <ButtonText>Save Design</ButtonText>
                         </Button>
@@ -969,11 +981,10 @@ export default function MarketplaceTab() {
                           size="md"
                           action="secondary"
                           variant="outline"
-                          onPress={() => handleUnsaveDesign(savedDesignId)}
-                          isDisabled={removingId !== null}
+                          onPress={onModalBookmarkPress}
                         >
                           <Ionicons name="bookmark" size={20} color={colors.typography500} style={{ marginRight: 8 }} />
-                          <ButtonText>{removingId === savedDesignId ? "Removing…" : "Remove from saved"}</ButtonText>
+                          <ButtonText>Remove from saved</ButtonText>
                         </Button>
                       );
                     }
@@ -981,7 +992,7 @@ export default function MarketplaceTab() {
                       <Button
                         size="md"
                         action="primary"
-                        onPress={() => handleSaveDesign(selectedDesignDetail)}
+                        onPress={onModalBookmarkPress}
                         isDisabled={saving}
                       >
                         <Ionicons name="bookmark-outline" size={20} color={colors.typography950} style={{ marginRight: 8 }} />

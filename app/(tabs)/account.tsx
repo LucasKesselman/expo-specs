@@ -5,8 +5,8 @@ import {
   FormControlLabelText,
 } from "@/components/ui/form-control";
 import { Input, InputField } from "@/components/ui/input";
+import { useSavedDesignsContext } from "@/contexts/SavedDesignsContext";
 import { useAuth, useAuthState } from "@/hooks/useAuth";
-import { useSavedDesigns } from "@/hooks/useSavedDesigns";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
@@ -22,6 +22,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Image,
+  LayoutAnimation,
+  Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
@@ -49,6 +52,56 @@ function getProviderLabel(providerId: string): string {
   if (providerId === "google.com") return "Google";
   if (providerId === "apple.com") return "Apple";
   return providerId;
+}
+
+/**
+ * Native-style collapsible section (iOS/Android). Header is tappable; content is shown when expanded.
+ * Default collapsed so User settings / Create Design / Create Garment are hidden until opened.
+ */
+function CollapsibleSection({
+  title,
+  children,
+  defaultExpanded = false,
+  styles,
+  colors,
+}: {
+  title: string;
+  children: React.ReactNode;
+  defaultExpanded?: boolean;
+  styles: ReturnType<typeof createAccountStyles>;
+  colors: Record<string, string>;
+}) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+
+  const onToggle = useCallback(() => {
+    if (Platform.OS === "ios" || Platform.OS === "android") {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    }
+    setExpanded((prev) => !prev);
+  }, []);
+
+  return (
+    <View style={styles.collapsibleSection}>
+      <Pressable
+        style={({ pressed }) => [
+          styles.collapsibleHeader,
+          pressed && styles.collapsibleHeaderPressed,
+        ]}
+        onPress={onToggle}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        accessibilityLabel={`${title}, ${expanded ? "expanded" : "collapsed"}`}
+      >
+        <Text style={styles.collapsibleHeaderTitle}>{title}</Text>
+        <Ionicons
+          name={expanded ? "chevron-up" : "chevron-down"}
+          size={22}
+          color={colors.typography500}
+        />
+      </Pressable>
+      {expanded ? <View style={styles.collapsibleContent}>{children}</View> : null}
+    </View>
+  );
 }
 
 function SessionInfo({
@@ -237,10 +290,12 @@ function UserSettingsSection({
   styles,
   colors,
   userEmail,
+  showTitle = true,
 }: {
   styles: ReturnType<typeof createAccountStyles>;
   colors: Record<string, string>;
   userEmail: string | null;
+  showTitle?: boolean;
 }) {
   const { theme, setTheme } = useTheme();
   const { resetPassword, loading: authLoading, error: authError, clearError } = useAuth();
@@ -276,7 +331,7 @@ function UserSettingsSection({
 
   return (
     <View style={styles.settingsSection}>
-      <Text style={styles.settingsSectionTitle}>User settings</Text>
+      {showTitle ? <Text style={styles.settingsSectionTitle}>User settings</Text> : null}
       <View style={styles.settingsCard}>
         <FormControl>
           <View style={styles.settingRow}>
@@ -393,7 +448,6 @@ function CreateDesignSection({
 
   return (
     <View style={styles.settingsSection}>
-      <Text style={styles.settingsSectionTitle}>Create Design</Text>
       <View style={styles.settingsCard}>
         <FormControl style={styles.formField}>
           <FormControlLabel>
@@ -520,7 +574,6 @@ function CreateGarmentSection({
 
   return (
     <View style={styles.settingsSection}>
-      <Text style={styles.settingsSectionTitle}>Create Garment</Text>
       <View style={styles.settingsCard}>
         <FormControl style={styles.formField}>
           <FormControlLabel>
@@ -634,6 +687,25 @@ function CreateGarmentSection({
 
 function createAccountStyles(colors: Record<string, string>) {
   return StyleSheet.create({
+    collapsibleSection: { marginHorizontal: 20, marginBottom: 12 },
+    collapsibleHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      backgroundColor: colors.background100,
+      borderRadius: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.outline200,
+    },
+    collapsibleHeaderPressed: { opacity: 0.7 },
+    collapsibleHeaderTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.typography950,
+    },
+    collapsibleContent: { marginTop: 8, marginBottom: 16 },
     settingsSection: { marginHorizontal: 20, marginBottom: 24 },
     settingsSectionTitle: {
       fontSize: 13,
@@ -778,9 +850,7 @@ export default function AccountTab() {
   const styles = useMemo(() => createAccountStyles(colors), [colors]);
   const { logout } = useAuth();
   const user = useAuthState();
-  const { savedDesigns, loading, error, refresh, remove, removingId } = useSavedDesigns(
-    user?.uid ?? null
-  );
+  const { savedDesigns, loading, error, refresh, remove, removingId } = useSavedDesignsContext();
 
   useFocusEffect(
     useCallback(() => {
@@ -813,9 +883,20 @@ export default function AccountTab() {
         {user ? (
           <>
             <SessionInfo user={user} colors={colors} />
-            <UserSettingsSection styles={styles} colors={colors} userEmail={user.email ?? null} />
-            <CreateDesignSection userEmail={user.email ?? ""} styles={styles} colors={colors} />
-            <CreateGarmentSection userEmail={user.email ?? ""} styles={styles} colors={colors} />
+            <CollapsibleSection title="User settings" styles={styles} colors={colors}>
+              <UserSettingsSection
+                styles={styles}
+                colors={colors}
+                userEmail={user.email ?? null}
+                showTitle={false}
+              />
+            </CollapsibleSection>
+            <CollapsibleSection title="Create Design" styles={styles} colors={colors}>
+              <CreateDesignSection userEmail={user.email ?? ""} styles={styles} colors={colors} />
+            </CollapsibleSection>
+            <CollapsibleSection title="Create Garment" styles={styles} colors={colors}>
+              <CreateGarmentSection userEmail={user.email ?? ""} styles={styles} colors={colors} />
+            </CollapsibleSection>
             <SavedDesignsSection
               userId={user.uid}
               savedDesigns={savedDesigns}
