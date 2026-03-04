@@ -15,10 +15,14 @@ import { WebView } from "react-native-webview";
 
 function getZapparImageTrackingHtml(
   targetZptUrl: string,
-  targetDisplayName: string
+  targetDisplayName: string,
+  videoUrl: string
 ): string {
   const escapedUrl = targetZptUrl.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
   const escapedName = targetDisplayName
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'");
+  const escapedVideoUrl = videoUrl
     .replace(/\\/g, "\\\\")
     .replace(/'/g, "\\'");
   return `
@@ -82,6 +86,7 @@ function getZapparImageTrackingHtml(
       var permissionMsg = document.getElementById('permission-msg');
       var targetZptUrl = '${escapedUrl}';
       var targetDisplayName = '${escapedName}';
+      var videoUrl = '${escapedVideoUrl}';
 
       var scene = new THREE.Scene();
       var renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
@@ -144,10 +149,26 @@ function getZapparImageTrackingHtml(
           var imageAnchorGroup = new ZapparThree.ImageAnchorGroup(camera, imageTracker);
           scene.add(imageAnchorGroup);
 
-          var geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-          var material = new THREE.MeshStandardMaterial({ color: 0x007AFF, metalness: 0.2, roughness: 0.6 });
-          var cube = new THREE.Mesh(geometry, material);
-          imageAnchorGroup.add(cube);
+          var video = document.createElement('video');
+          video.src = videoUrl;
+          video.autoplay = true;
+          video.muted = true;
+          video.loop = true;
+          video.playsInline = true;
+          video.crossOrigin = 'anonymous';
+          var videoTexture = new THREE.VideoTexture(video);
+          videoTexture.minFilter = THREE.LinearFilter;
+          videoTexture.magFilter = THREE.LinearFilter;
+          var videoMaterial = new THREE.MeshBasicMaterial({
+            map: videoTexture,
+            side: THREE.DoubleSide,
+          });
+          var videoGeometry = new THREE.PlaneGeometry(1, 1);
+          var videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+          imageAnchorGroup.add(videoPlane);
+
+          video.addEventListener('canplay', function() { video.play(); });
+          video.load();
 
           var dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
           dirLight.position.set(1, 2, 3);
@@ -254,6 +275,7 @@ export default function CameraPage() {
   const [permission, requestPermission] = useCameraPermissions();
   const [showWebView, setShowWebView] = useState(false);
   const [targetZptUrl, setTargetZptUrl] = useState<string | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [targetLoadError, setTargetLoadError] = useState<string | null>(null);
   const [loadedTargetName, setLoadedTargetName] = useState<string | null>(null);
 
@@ -263,11 +285,16 @@ export default function CameraPage() {
 
   useEffect(() => {
     setTargetLoadError(null);
-    const targetRef = ref(storage, "targets/target_001.zpt");
-    getDownloadURL(targetRef)
-      .then((url) => setTargetZptUrl(url))
+    Promise.all([
+      getDownloadURL(ref(storage, "targets/target_001.zpt")),
+      getDownloadURL(ref(storage, "models/model_001.mp4")),
+    ])
+      .then(([targetUrl, modelUrl]) => {
+        setTargetZptUrl(targetUrl);
+        setVideoUrl(modelUrl);
+      })
       .catch((err) => {
-        setTargetLoadError(err?.message ?? "Failed to load target from Storage");
+        setTargetLoadError(err?.message ?? "Failed to load from Storage");
       });
   }, []);
 
@@ -300,7 +327,7 @@ export default function CameraPage() {
     );
   }
 
-  if (!showWebView || !targetZptUrl) {
+  if (!showWebView || !targetZptUrl || !videoUrl) {
     return (
       <View style={[styles.container, styles.centered]}>
         <ActivityIndicator size="large" color={colors.primary500} />
@@ -308,8 +335,8 @@ export default function CameraPage() {
           <Text style={[styles.helperText, styles.helperError]}>
             {targetLoadError}
           </Text>
-        ) : !targetZptUrl && showWebView ? (
-          <Text style={styles.helperText}>Loading target from Storage…</Text>
+        ) : showWebView && (!targetZptUrl || !videoUrl) ? (
+          <Text style={styles.helperText}>Loading target and model…</Text>
         ) : null}
       </View>
     );
@@ -319,7 +346,11 @@ export default function CameraPage() {
     <View style={styles.container}>
       <WebView
         source={{
-          html: getZapparImageTrackingHtml(targetZptUrl, "target_001"),
+          html: getZapparImageTrackingHtml(
+            targetZptUrl,
+            "target_001",
+            videoUrl
+          ),
           baseUrl: "https://libs.zappar.com/",
         }}
         style={styles.webview}
