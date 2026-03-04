@@ -1,6 +1,20 @@
 # Firebase configuration
 
-This folder holds Firestore security rules and (when added) Cloud Functions config.
+This folder holds Firestore security rules, Storage CORS, and (when added) Cloud Functions config.
+
+## Storage CORS (for AR target .zpt files)
+
+The camera loads Zappar target files (`.zpt`) from Firebase Storage. The WebView must be allowed to fetch those URLs (CORS). Apply the CORS config once:
+
+**Prerequisite:** [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) installed and authenticated (`gcloud auth login`).
+
+From the **project root**:
+
+```bash
+gsutil cors set firebase/cors.json gs://pygmalions-specs.firebasestorage.app
+```
+
+This allows `GET` from any origin (`*`). Re-run if you change `firebase/cors.json`.
 
 ## Firestore rules
 

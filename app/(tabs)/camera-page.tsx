@@ -1,4 +1,7 @@
 import { useThemeColors } from "@/hooks/useThemeColors";
+import { storage } from "@/lib/firebase";
+import { useCameraPermissions } from "expo-camera";
+import { getDownloadURL, ref } from "firebase/storage";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -7,10 +10,18 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
-import { useCameraPermissions } from "expo-camera";
 
-const ZAPPAR_AR_HTML = `
+function getZapparImageTrackingHtml(
+  targetZptUrl: string,
+  targetDisplayName: string
+): string {
+  const escapedUrl = targetZptUrl.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  const escapedName = targetDisplayName
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'");
+  return `
 <!DOCTYPE html>
 <html>
 <head>
@@ -20,23 +31,6 @@ const ZAPPAR_AR_HTML = `
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
     #canvas { display: block; width: 100%; height: 100%; touch-action: none; }
-    #place-btn {
-      position: fixed;
-      bottom: 40px;
-      left: 50%;
-      transform: translateX(-50%);
-      padding: 14px 28px;
-      font-size: 16px;
-      font-weight: 600;
-      color: #fff;
-      background: #007AFF;
-      border: none;
-      border-radius: 12px;
-      cursor: pointer;
-      z-index: 10;
-      opacity: 0.9;
-    }
-    #place-btn:active { opacity: 1; }
     #flip-btn {
       position: fixed;
       top: calc(env(safe-area-inset-top) + 12px);
@@ -73,7 +67,6 @@ const ZAPPAR_AR_HTML = `
 </head>
 <body>
   <canvas id="canvas"></canvas>
-  <button id="place-btn" style="display:none;">Tap to place object</button>
   <button id="flip-btn" aria-label="Switch camera">
     <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M23 4v6h-6M1 20v-6h6"/>
@@ -86,8 +79,9 @@ const ZAPPAR_AR_HTML = `
   <script>
     (function() {
       var canvas = document.getElementById('canvas');
-      var placeBtn = document.getElementById('place-btn');
       var permissionMsg = document.getElementById('permission-msg');
+      var targetZptUrl = '${escapedUrl}';
+      var targetDisplayName = '${escapedName}';
 
       var scene = new THREE.Scene();
       var renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
@@ -143,9 +137,38 @@ const ZAPPAR_AR_HTML = `
         if (granted) {
           camera.start();
           camera.userCameraMirrorMode = ZapparThree.CameraMirrorMode.None;
-          permissionMsg.textContent = '';
-          placeBtn.style.display = 'block';
+          permissionMsg.textContent = 'Loading target…';
           setTimeout(checkFrontCameraAndShowButton, 150);
+
+          var imageTracker = new ZapparThree.ImageTracker();
+          var imageAnchorGroup = new ZapparThree.ImageAnchorGroup(camera, imageTracker);
+          scene.add(imageAnchorGroup);
+
+          var geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+          var material = new THREE.MeshStandardMaterial({ color: 0x007AFF, metalness: 0.2, roughness: 0.6 });
+          var cube = new THREE.Mesh(geometry, material);
+          imageAnchorGroup.add(cube);
+
+          var dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+          dirLight.position.set(1, 2, 3);
+          scene.add(dirLight);
+          scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+          imageTracker.loadTarget(targetZptUrl).then(function() {
+            permissionMsg.textContent = 'Point your camera at the target image';
+            if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'targetLoaded', name: targetDisplayName }));
+            }
+          }).catch(function(err) {
+            permissionMsg.textContent = 'Failed to load target: ' + (err && err.message ? err.message : 'Check target file.');
+          });
+
+          function animate() {
+            requestAnimationFrame(animate);
+            camera.updateFrame(renderer);
+            renderer.render(scene, camera);
+          }
+          animate();
         } else {
           permissionMsg.textContent = 'Camera access is needed for AR. Please allow and reload.';
           ZapparThree.permissionDeniedUI();
@@ -155,31 +178,6 @@ const ZAPPAR_AR_HTML = `
         permissionMsg.textContent = 'Camera error: ' + (err && err.message ? err.message : 'Please allow camera in Settings and try again.');
       });
 
-      var instantWorldTracker = new ZapparThree.InstantWorldTracker();
-      var instantAnchorGroup = new ZapparThree.InstantWorldAnchorGroup(camera, instantWorldTracker);
-      scene.add(instantAnchorGroup);
-
-      var geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-      var material = new THREE.MeshStandardMaterial({ color: 0x007AFF, metalness: 0.2, roughness: 0.6 });
-      var cube = new THREE.Mesh(geometry, material);
-      instantAnchorGroup.add(cube);
-
-      var dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      dirLight.position.set(1, 2, 3);
-      scene.add(dirLight);
-      scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-
-      var hasPlaced = false;
-      placeBtn.addEventListener('click', function() { hasPlaced = true; placeBtn.style.display = 'none'; });
-
-      function animate() {
-        requestAnimationFrame(animate);
-        camera.updateFrame(renderer);
-        if (!hasPlaced) instantWorldTracker.setAnchorPoseFromCameraOffset(0, 0, -5);
-        renderer.render(scene, camera);
-      }
-      animate();
-
       window.addEventListener('resize', function() {
         renderer.setSize(window.innerWidth, window.innerHeight);
       });
@@ -188,15 +186,21 @@ const ZAPPAR_AR_HTML = `
 </body>
 </html>
 `;
+}
 
 /** Camera/AR tab: requests permission then loads Zappar AR WebView (place-a-cube). */
 export default function CameraPage() {
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(
     () =>
       StyleSheet.create({
         container: { flex: 1, backgroundColor: colors.background0 },
-        centered: { justifyContent: "center", alignItems: "center", padding: 24 },
+        centered: {
+          justifyContent: "center",
+          alignItems: "center",
+          padding: 24,
+        },
         helperText: {
           color: colors.typography950,
           fontSize: 16,
@@ -221,16 +225,51 @@ export default function CameraPage() {
           fontSize: 16,
           fontWeight: "600",
         },
+        helperError: {
+          color: colors.error500 ?? "#dc2626",
+          marginTop: 12,
+        },
         webview: { flex: 1, backgroundColor: "transparent" },
+        designBanner: {
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          alignItems: "center",
+          paddingTop: insets.top + 8,
+          paddingBottom: 12,
+          paddingHorizontal: 16,
+          backgroundColor: "rgba(0,0,0,0.7)",
+          zIndex: 10,
+        },
+        designBannerText: {
+          color: "#fff",
+          fontSize: 6,
+          fontWeight: "600",
+          textAlign: "center",
+        },
       }),
-    [colors]
+    [colors, insets.top],
   );
   const [permission, requestPermission] = useCameraPermissions();
   const [showWebView, setShowWebView] = useState(false);
+  const [targetZptUrl, setTargetZptUrl] = useState<string | null>(null);
+  const [targetLoadError, setTargetLoadError] = useState<string | null>(null);
+  const [loadedTargetName, setLoadedTargetName] = useState<string | null>(null);
 
   useEffect(() => {
     if (permission?.granted) setShowWebView(true);
   }, [permission?.granted]);
+
+  useEffect(() => {
+    setTargetLoadError(null);
+    const targetRef = ref(storage, "targets/target_001.zpt");
+    getDownloadURL(targetRef)
+      .then((url) => setTargetZptUrl(url))
+      .catch((err) => {
+        setTargetLoadError(err?.message ?? "Failed to load target from Storage");
+      });
+  }, []);
 
   if (permission === null) {
     return (
@@ -261,10 +300,17 @@ export default function CameraPage() {
     );
   }
 
-  if (!showWebView) {
+  if (!showWebView || !targetZptUrl) {
     return (
       <View style={[styles.container, styles.centered]}>
         <ActivityIndicator size="large" color={colors.primary500} />
+        {targetLoadError ? (
+          <Text style={[styles.helperText, styles.helperError]}>
+            {targetLoadError}
+          </Text>
+        ) : !targetZptUrl && showWebView ? (
+          <Text style={styles.helperText}>Loading target from Storage…</Text>
+        ) : null}
       </View>
     );
   }
@@ -273,7 +319,7 @@ export default function CameraPage() {
     <View style={styles.container}>
       <WebView
         source={{
-          html: ZAPPAR_AR_HTML,
+          html: getZapparImageTrackingHtml(targetZptUrl, "target_001"),
           baseUrl: "https://libs.zappar.com/",
         }}
         style={styles.webview}
@@ -287,7 +333,22 @@ export default function CameraPage() {
         allowsFullscreenVideo
         scrollEnabled={false}
         bounces={false}
+        onMessage={(event) => {
+          try {
+            const data = JSON.parse(event.nativeEvent.data);
+            if (data.type === "targetLoaded" && data.name != null) {
+              setLoadedTargetName(data.name);
+            }
+          } catch {
+            // ignore malformed messages
+          }
+        }}
       />
+      <View style={styles.designBanner} pointerEvents="box-none">
+        <Text style={styles.designBannerText}>
+          Currently Selected Design: {loadedTargetName ?? "___DES-DEFAULT___"}
+        </Text>
+      </View>
     </View>
   );
 }

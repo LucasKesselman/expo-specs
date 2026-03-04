@@ -12,11 +12,15 @@ import {
   type Auth,
 } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
+import { getStorage, type FirebaseStorage } from "firebase/storage";
 import { firebaseConfig } from "./firebase.config";
+
+const STORAGE_BUCKET = "gs://pygmalions-specs.firebasestorage.app";
 
 let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
+let storage: FirebaseStorage;
 
 if (getApps().length === 0) {
   app = initializeApp(firebaseConfig);
@@ -24,10 +28,12 @@ if (getApps().length === 0) {
     persistence: browserLocalPersistence,
   });
   db = getFirestore(app);
+  storage = getStorage(app, STORAGE_BUCKET);
 } else {
   app = getApp();
   auth = getAuth(app);
   db = getFirestore(app);
+  storage = getStorage(app, STORAGE_BUCKET);
 }
 
-export { app, auth, db };
+export { app, auth, db, storage };

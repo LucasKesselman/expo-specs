@@ -1,0 +1,4 @@
+# Target image assets for AR image tracking.
+# Generate .zpt from a PNG (e.g. target_001.png) with ZapWorks CLI:
+#   npx zapworks train target_001.png
+# Then move the output target_001.zpt into this folder.

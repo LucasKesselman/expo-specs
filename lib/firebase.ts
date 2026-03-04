@@ -8,6 +8,7 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
+import { getStorage, type FirebaseStorage } from "firebase/storage";
 import { firebaseConfig } from "./firebase.config";
 
 // React Native persistence – only in this file, not loaded on web
@@ -15,9 +16,12 @@ import { firebaseConfig } from "./firebase.config";
 import { initializeAuth, getReactNativePersistence } from "@firebase/auth";
 import ReactNativeAsyncStorage from "@react-native-async-storage/async-storage";
 
+const STORAGE_BUCKET = "gs://pygmalions-specs.firebasestorage.app";
+
 let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
+let storage: FirebaseStorage;
 
 if (getApps().length === 0) {
   app = initializeApp(firebaseConfig);
@@ -25,10 +29,12 @@ if (getApps().length === 0) {
     persistence: getReactNativePersistence(ReactNativeAsyncStorage),
   });
   db = getFirestore(app);
+  storage = getStorage(app, STORAGE_BUCKET);
 } else {
   app = getApp();
   auth = getAuth(app);
   db = getFirestore(app);
+  storage = getStorage(app, STORAGE_BUCKET);
 }
 
 /** Firebase App (for Functions, etc.). */
@@ -37,3 +43,5 @@ export { app };
 export { auth };
 /** Firestore instance for users/savedDesigns. */
 export { db };
+/** Firebase Storage instance (pygmalions-specs bucket, e.g. targets/). */
+export { storage };
