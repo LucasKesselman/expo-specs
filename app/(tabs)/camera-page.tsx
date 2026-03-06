@@ -5,6 +5,7 @@ import { getDownloadURL, ref } from "firebase/storage";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -80,6 +81,7 @@ function getZapparImageTrackingHtml(
   <div id="permission-msg">Requesting camera access…</div>
   <script src="https://unpkg.com/three@0.128.0/build/three.min.js"><\/script>
   <script src="https://libs.zappar.com/zappar-threejs/4.3.0/zappar-threejs.js"><\/script>
+  <script src="https://unpkg.com/jsqr@1.4.0/dist/jsQR.js"><\/script>
   <script>
     (function() {
       var canvas = document.getElementById('canvas');
@@ -184,10 +186,50 @@ function getZapparImageTrackingHtml(
             permissionMsg.textContent = 'Failed to load target: ' + (err && err.message ? err.message : 'Check target file.');
           });
 
+          var qrScanW = 256;
+          var qrScanH = 256;
+          var qrFrameCount = 0;
+          var qrCooldownMs = 2000;
+          var qrLastScannedTime = 0;
+          var qrLastScannedData = '';
+
+          function tryScanQR() {
+            if (typeof jsQR === 'undefined') return;
+            qrFrameCount++;
+            if (qrFrameCount % 12 !== 0) return;
+            var gl = renderer.getContext();
+            var cw = canvas.width;
+            var ch = canvas.height;
+            if (cw < qrScanW || ch < qrScanH) return;
+            var sx = Math.floor((cw - qrScanW) / 2);
+            var sy = Math.floor((ch - qrScanH) / 2);
+            var raw = new Uint8Array(qrScanW * qrScanH * 4);
+            gl.readPixels(sx, sy, qrScanW, qrScanH, gl.RGBA, gl.UNSIGNED_BYTE, raw);
+            var flipped = new Uint8ClampedArray(qrScanW * qrScanH * 4);
+            for (var row = 0; row < qrScanH; row++) {
+              var srcRow = qrScanH - 1 - row;
+              for (var col = 0; col < qrScanW * 4; col++) {
+                flipped[row * qrScanW * 4 + col] = raw[srcRow * qrScanW * 4 + col];
+              }
+            }
+            var code = jsQR(flipped, qrScanW, qrScanH);
+            if (code && code.data) {
+              var now = Date.now();
+              if (now - qrLastScannedTime >= qrCooldownMs || code.data !== qrLastScannedData) {
+                qrLastScannedTime = now;
+                qrLastScannedData = code.data;
+                if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+                  window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'designQR', data: code.data }));
+                }
+              }
+            }
+          }
+
           function animate() {
             requestAnimationFrame(animate);
             camera.updateFrame(renderer);
             renderer.render(scene, camera);
+            tryScanQR();
           }
           animate();
         } else {
@@ -207,6 +249,11 @@ function getZapparImageTrackingHtml(
 </body>
 </html>
 `;
+}
+
+/** Called when the camera (WebView) detects a design QR code (e.g. DES-001). */
+function foundDesignQR(data: string) {
+  Alert.alert("I found a QR code!", data || "Design QR detected.");
 }
 
 /** Camera/AR tab: requests permission then loads Zappar AR WebView (place-a-cube). */
@@ -369,6 +416,9 @@ export default function CameraPage() {
             const data = JSON.parse(event.nativeEvent.data);
             if (data.type === "targetLoaded" && data.name != null) {
               setLoadedTargetName(data.name);
+            }
+            if (data.type === "designQR" && data.data != null) {
+              foundDesignQR(String(data.data));
             }
           } catch {
             // ignore malformed messages

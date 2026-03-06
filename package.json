@@ -5,6 +5,7 @@
   "scripts": {
     "start": "expo start",
     "artie-script-generate-fake-data": "node scripts/seed-firestore.js",
+    "artie-script-generate-design-qrs": "node scripts/artie-script-generate-design-qrs.js",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android",
     "ios": "expo start --ios",
@@ -59,6 +60,7 @@
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
     "prettier-plugin-tailwindcss": "^0.5.14",
+    "qrcode": "^1.5.4",
     "tailwindcss": "^3.4.19",
     "typescript": "~5.9.2"
   },
