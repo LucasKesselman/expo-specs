@@ -46,13 +46,17 @@ export function useSavedDesigns(userId: string | null) {
     async (savedDesignId: string) => {
       if (!userId) return;
       let removed: SavedDesignWithId | null = null;
+      setRemovingId(savedDesignId);
       setSavedDesigns((prev) => {
         removed = prev.find((item) => item.id === savedDesignId) ?? null;
         if (!removed) return prev;
         removedForRollbackRef.current = removed;
         return prev.filter((item) => item.id !== savedDesignId);
       });
-      if (!removed) return;
+      if (!removed) {
+        setRemovingId(null);
+        return;
+      }
       try {
         await removeSavedDesign(userId, savedDesignId);
       } catch (err) {
@@ -64,6 +68,7 @@ export function useSavedDesigns(userId: string | null) {
         });
       } finally {
         removedForRollbackRef.current = null;
+        setRemovingId(null);
       }
     },
     [userId]

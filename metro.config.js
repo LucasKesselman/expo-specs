@@ -2,6 +2,7 @@ const { getDefaultConfig } = require('expo/metro-config');
 const { withNativeWind } = require('nativewind/metro');
 
 const config = getDefaultConfig(__dirname);
+config.resolver.assetExts = [...(config.resolver.assetExts || []), "zpt"];
 
 // Prefer React Native build of @firebase/auth on native (iOS/Android) so
 // getReactNativePersistence works. On web, use the default (browser) build.
