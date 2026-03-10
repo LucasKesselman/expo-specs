@@ -144,6 +144,14 @@ export default function CameraPage() {
       if (data.type === "designQR" && data.data != null) {
         showFoundQRAlert(String(data.data));
       }
+      if (data.type === "videoError" && data.message != null) {
+        Alert.alert(
+          "Video failed to load",
+          String(data.message) +
+            "\n\nIf using Firebase Storage, ensure CORS is set (see firebase/README.md). Or bundle the .mp4 in the app.",
+          [{ text: "OK" }]
+        );
+      }
     } catch {
       // ignore malformed messages
     }

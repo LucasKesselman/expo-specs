@@ -2,9 +2,9 @@
 
 This folder holds Firestore security rules, Storage CORS, and (when added) Cloud Functions config.
 
-## Storage CORS (for AR target .zpt files)
+## Storage CORS (AR targets and video)
 
-The camera loads Zappar target files (`.zpt`) from Firebase Storage. The WebView must be allowed to fetch those URLs (CORS). Apply the CORS config once:
+The camera loads the AR target (`.zpt`) from the app bundle and the **video (`.mp4`)** from Firebase Storage. Using the video as a WebGL texture in the WebView requires CORS headers on the bucket; without them the video can load but appear black. Apply the CORS config once:
 
 **Prerequisite:** [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) installed and authenticated (`gcloud auth login`).
 

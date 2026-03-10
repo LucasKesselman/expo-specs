@@ -110,15 +110,34 @@
       scene.add(imageAnchorGroup);
 
       var arVideo = document.createElement("video");
-      arVideo.src = videoUrl;
+      arVideo.preload = "auto";
       arVideo.autoplay = true;
       arVideo.muted = true;
       arVideo.loop = true;
       arVideo.playsInline = true;
+      arVideo.setAttribute("playsinline", "true");
+      arVideo.setAttribute("webkit-playsinline", "true");
       arVideo.crossOrigin = "anonymous";
+      function notifyVideoError(msg) {
+        if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+          window.ReactNativeWebView.postMessage(
+            JSON.stringify({ type: "videoError", message: msg || "Unknown" })
+          );
+        }
+      }
+      arVideo.addEventListener("error", function () {
+        var err = arVideo.error;
+        var msg = err ? (err.message || "code " + err.code) : "Load failed";
+        notifyVideoError(msg);
+      });
+      arVideo.addEventListener("stalled", function () {
+        notifyVideoError("Stalled");
+      });
+      arVideo.src = videoUrl;
       var videoTexture = new THREE.VideoTexture(arVideo);
       videoTexture.minFilter = THREE.LinearFilter;
       videoTexture.magFilter = THREE.LinearFilter;
+      videoTexture.format = THREE.RGBAFormat;
       var videoPlane = new THREE.Mesh(
         new THREE.PlaneGeometry(1, 1),
         new THREE.MeshBasicMaterial({
@@ -127,10 +146,17 @@
         })
       );
       imageAnchorGroup.add(videoPlane);
-      arVideo.addEventListener("canplay", function () {
-        arVideo.play();
-      });
+      function tryPlayVideo() {
+        if (arVideo.readyState >= 2 && arVideo.paused) {
+          var p = arVideo.play();
+          if (p && typeof p.catch === "function") p.catch(function () {});
+        }
+      }
+      arVideo.addEventListener("canplay", tryPlayVideo);
+      arVideo.addEventListener("loadeddata", tryPlayVideo);
+      arVideo.addEventListener("canplaythrough", tryPlayVideo);
       arVideo.load();
+      tryPlayVideo();
 
       var cubeGeometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
       var cubeMaterial = new THREE.MeshBasicMaterial({ color: 0x2288ff });
@@ -274,7 +300,9 @@
       function animate() {
         requestAnimationFrame(animate);
         camera.updateFrame(renderer);
+        tryPlayVideo();
         tryScanQR();
+        if (videoTexture && arVideo.readyState >= 2) videoTexture.needsUpdate = true;
         renderer.render(scene, camera);
       }
       animate();
