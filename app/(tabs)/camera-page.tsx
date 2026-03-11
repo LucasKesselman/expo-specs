@@ -99,14 +99,16 @@ export default function CameraPage() {
   const [permission, requestPermission] = useCameraPermissions();
   const [showWebView, setShowWebView] = useState(false);
   const [targetZptBase64, setTargetZptBase64] = useState<string | null>(null);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [designImageUrl, setDesignImageUrl] = useState<string | null>(null);
   const [targetLoadError, setTargetLoadError] = useState<string | null>(null);
   const [loadedTargetName, setLoadedTargetName] = useState<string | null>(null);
+  const [loadedDesignFileName, setLoadedDesignFileName] =
+    useState<string | null>(null);
   const webViewRef = useRef<WebView>(null);
   const configRef = useRef<{
     targetZptBase64: string;
     targetDisplayName: string;
-    videoUrl: string;
+    imageUrl: string;
   } | null>(null);
 
   useEffect(() => {
@@ -123,14 +125,14 @@ export default function CameraPage() {
         const uri = asset.localUri ?? asset.uri;
         return new File(uri).base64();
       }),
-      getDownloadURL(ref(storage, "models/model_001.mp4")),
+      getDownloadURL(ref(storage, "designs/DES-001.jpg")),
     ])
-      .then(([base64, modelUrl]) => {
+      .then(([base64, imageUrl]) => {
         setTargetZptBase64(base64);
-        setVideoUrl(modelUrl);
+        setDesignImageUrl(imageUrl);
       })
       .catch((err) => {
-        setTargetLoadError(err?.message ?? "Failed to load target or model");
+        setTargetLoadError(err?.message ?? "Failed to load target or design image");
       });
   }, []);
 
@@ -141,14 +143,17 @@ export default function CameraPage() {
       if (data.type === "targetLoaded" && data.name != null) {
         setLoadedTargetName(data.name);
       }
+      if (data.type === "designImageLoaded" && data.fileName != null) {
+        setLoadedDesignFileName(String(data.fileName));
+      }
       if (data.type === "designQR" && data.data != null) {
         showFoundQRAlert(String(data.data));
       }
-      if (data.type === "videoError" && data.message != null) {
+      if (data.type === "imageError" && data.message != null) {
         Alert.alert(
-          "Video failed to load",
+          "Design image failed to load",
           String(data.message) +
-            "\n\nIf using Firebase Storage, ensure CORS is set (see firebase/README.md). Or bundle the .mp4 in the app.",
+            "\n\nIf using Firebase Storage, ensure CORS is set (see firebase/README.md).",
           [{ text: "OK" }]
         );
       }
@@ -186,14 +191,14 @@ export default function CameraPage() {
     );
   }
 
-  if (!showWebView || !targetZptBase64 || !videoUrl) {
+  if (!showWebView || !targetZptBase64 || !designImageUrl) {
     return (
       <View style={[styles.container, styles.centered]}>
         <ActivityIndicator size="large" color={colors.primary500} />
         {targetLoadError ? (
           <Text style={[styles.helperText, styles.helperError]}>{targetLoadError}</Text>
         ) : (
-          <Text style={styles.helperText}>Loading target and model…</Text>
+          <Text style={styles.helperText}>Loading target and design…</Text>
         )}
       </View>
     );
@@ -202,7 +207,7 @@ export default function CameraPage() {
   configRef.current = {
     targetZptBase64: targetZptBase64 as string,
     targetDisplayName: "target_001",
-    videoUrl: videoUrl as string,
+    imageUrl: designImageUrl as string,
   };
 
   return (
@@ -235,7 +240,10 @@ export default function CameraPage() {
       />
       <View style={styles.designBanner} pointerEvents="box-none">
         <Text style={styles.designBannerText}>
-          Currently Selected Design: {loadedTargetName ?? "___DES-DEFAULT___"}
+          Currently Selected Design:{" "}
+          {loadedDesignFileName ??
+            loadedTargetName ??
+            "___DES-DEFAULT___"}
         </Text>
       </View>
     </View>

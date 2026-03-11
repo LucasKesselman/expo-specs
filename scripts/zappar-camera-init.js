@@ -12,7 +12,7 @@
   var config = getConfig();
   var targetZptBase64 = config.targetZptBase64 || "";
   var targetDisplayName = config.targetDisplayName || "";
-  var videoUrl = config.videoUrl || "";
+  var imageUrl = config.imageUrl || "";
 
   function base64ToArrayBuffer(base64) {
     var binary = atob(base64);
@@ -109,60 +109,51 @@
       );
       scene.add(imageAnchorGroup);
 
-      var arVideo = document.createElement("video");
-      arVideo.preload = "auto";
-      arVideo.autoplay = true;
-      arVideo.muted = true;
-      arVideo.loop = true;
-      arVideo.playsInline = true;
-      arVideo.setAttribute("playsinline", "true");
-      arVideo.setAttribute("webkit-playsinline", "true");
-      arVideo.crossOrigin = "anonymous";
-      function notifyVideoError(msg) {
+      function notifyImageError(msg) {
         if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
           window.ReactNativeWebView.postMessage(
-            JSON.stringify({ type: "videoError", message: msg || "Unknown" })
+            JSON.stringify({ type: "imageError", message: msg || "Unknown" })
           );
         }
       }
-      arVideo.addEventListener("error", function () {
-        var err = arVideo.error;
-        var msg = err ? (err.message || "code " + err.code) : "Load failed";
-        notifyVideoError(msg);
-      });
-      arVideo.addEventListener("stalled", function () {
-        notifyVideoError("Stalled");
-      });
-      arVideo.src = videoUrl;
-      var videoTexture = new THREE.VideoTexture(arVideo);
-      videoTexture.minFilter = THREE.LinearFilter;
-      videoTexture.magFilter = THREE.LinearFilter;
-      videoTexture.format = THREE.RGBAFormat;
-      var videoPlane = new THREE.Mesh(
+      function notifyDesignImageLoaded(fileName) {
+        if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+          window.ReactNativeWebView.postMessage(
+            JSON.stringify({
+              type: "designImageLoaded",
+              fileName: fileName || "design",
+            })
+          );
+        }
+      }
+      var urlToLoad = imageUrl || (getConfig() && getConfig().imageUrl) || "";
+      var textureLoader = new THREE.TextureLoader();
+      textureLoader.setCrossOrigin("anonymous");
+      var imageTexture = textureLoader.load(
+        urlToLoad,
+        function () {
+          var pathPart = urlToLoad.split("?")[0];
+          var fileName = decodeURIComponent(
+            pathPart.split("/").pop() || "design"
+          );
+          notifyDesignImageLoaded(fileName);
+        },
+        undefined,
+        function () {
+          notifyImageError("Design image load failed");
+        }
+      );
+      imageTexture.minFilter = THREE.LinearFilter;
+      imageTexture.magFilter = THREE.LinearFilter;
+      imageTexture.format = THREE.RGBAFormat;
+      var imagePlane = new THREE.Mesh(
         new THREE.PlaneGeometry(1, 1),
         new THREE.MeshBasicMaterial({
-          map: videoTexture,
+          map: imageTexture,
           side: THREE.DoubleSide,
         })
       );
-      imageAnchorGroup.add(videoPlane);
-      function tryPlayVideo() {
-        if (arVideo.readyState >= 2 && arVideo.paused) {
-          var p = arVideo.play();
-          if (p && typeof p.catch === "function") p.catch(function () {});
-        }
-      }
-      arVideo.addEventListener("canplay", tryPlayVideo);
-      arVideo.addEventListener("loadeddata", tryPlayVideo);
-      arVideo.addEventListener("canplaythrough", tryPlayVideo);
-      arVideo.load();
-      tryPlayVideo();
-
-      var cubeGeometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-      var cubeMaterial = new THREE.MeshBasicMaterial({ color: 0x2288ff });
-      var cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-      cube.position.set(0.5, 0.5, 0.3);
-      imageAnchorGroup.add(cube);
+      imageAnchorGroup.add(imagePlane);
 
       var dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
       dirLight.position.set(1, 2, 3);
@@ -300,9 +291,10 @@
       function animate() {
         requestAnimationFrame(animate);
         camera.updateFrame(renderer);
-        tryPlayVideo();
+        // Only show the design when the target image is in view
+        imageAnchorGroup.visible =
+          imageTracker.visible && imageTracker.visible.size > 0;
         tryScanQR();
-        if (videoTexture && arVideo.readyState >= 2) videoTexture.needsUpdate = true;
         renderer.render(scene, camera);
       }
       animate();
