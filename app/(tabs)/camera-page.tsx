@@ -8,6 +8,7 @@ import { Asset } from "expo-asset";
 import { File } from "expo-file-system";
 import { useCameraPermissions } from "expo-camera";
 import { getDownloadURL, ref } from "firebase/storage";
+import * as Haptics from "expo-haptics";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -20,16 +21,17 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 
+/** Normalize design id from file name or QR payload (e.g. "DES-001.jpg" or "DES-001" -> "DES-001"). */
+function toDesignId(name: string): string {
+  return (name || "").trim().replace(/\.(jpg|jpeg|png|gif|webp)$/i, "");
+}
+
 /** Builds HTML with empty config; config is injected in WebView onLoad to avoid huge base64 in initial HTML. */
 function getZapparImageTrackingHtml(): string {
   return ZAPPAR_HTML_SHELL.replace("__CONFIG__", "{}").replaceAll(
     "__SCRIPT__",
     ZAPPAR_CAMERA_SCRIPT
   );
-}
-
-function showFoundQRAlert(data: string) {
-  Alert.alert("Found QR code", data || "Design QR detected.");
 }
 
 export default function CameraPage() {
@@ -110,6 +112,7 @@ export default function CameraPage() {
     targetDisplayName: string;
     imageUrl: string;
   } | null>(null);
+  const loadedDesignFileNameRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (permission?.granted) setShowWebView(true);
@@ -130,6 +133,9 @@ export default function CameraPage() {
       .then(([base64, imageUrl]) => {
         setTargetZptBase64(base64);
         setDesignImageUrl(imageUrl);
+        const initialDesignName = "DES-001.jpg";
+        loadedDesignFileNameRef.current = initialDesignName;
+        setLoadedDesignFileName(initialDesignName);
       })
       .catch((err) => {
         setTargetLoadError(err?.message ?? "Failed to load target or design image");
@@ -144,10 +150,43 @@ export default function CameraPage() {
         setLoadedTargetName(data.name);
       }
       if (data.type === "designImageLoaded" && data.fileName != null) {
-        setLoadedDesignFileName(String(data.fileName));
+        const fileName = String(data.fileName);
+        loadedDesignFileNameRef.current = fileName;
+        setLoadedDesignFileName(fileName);
       }
       if (data.type === "designQR" && data.data != null) {
-        showFoundQRAlert(String(data.data));
+        const scanned = String(data.data).trim();
+        const scannedDesignId = toDesignId(scanned);
+        const currentDesignId = toDesignId(
+          loadedDesignFileNameRef.current ?? ""
+        );
+        if (
+          !scannedDesignId ||
+          scannedDesignId.toLowerCase() === currentDesignId.toLowerCase()
+        ) {
+          return;
+        }
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        const designPath = scanned.includes(".")
+          ? "designs/" + scanned
+          : "designs/" + scannedDesignId + ".jpg";
+        getDownloadURL(ref(storage, designPath))
+          .then((url) => {
+            webViewRef.current?.injectJavaScript(
+              `window.__ZAPPAR_UPDATE_DESIGN__ && window.__ZAPPAR_UPDATE_DESIGN__(${JSON.stringify(url)});`
+            );
+            const newFileName = scanned.includes(".")
+              ? scanned
+              : scannedDesignId + ".jpg";
+            loadedDesignFileNameRef.current = newFileName;
+            setLoadedDesignFileName(newFileName);
+          })
+          .catch(() => {
+            Alert.alert(
+              "Design not found",
+              `Could not load design "${scannedDesignId}" from storage.`
+            );
+          });
       }
       if (data.type === "imageError" && data.message != null) {
         Alert.alert(
@@ -221,7 +260,6 @@ export default function CameraPage() {
         style={styles.webview}
         originWhitelist={["*"]}
         allowsInlineMediaPlayback
-        mediaCapture="granted"
         mediaPlaybackRequiresUserAction={false}
         javaScriptEnabled
         domStorageEnabled

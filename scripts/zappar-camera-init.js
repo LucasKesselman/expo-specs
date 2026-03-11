@@ -155,6 +155,33 @@
       );
       imageAnchorGroup.add(imagePlane);
 
+      window.__ZAPPAR_UPDATE_DESIGN__ = function (newImageUrl) {
+        if (!newImageUrl || !imagePlane) return;
+        var loader = new THREE.TextureLoader();
+        loader.setCrossOrigin("anonymous");
+        loader.load(
+          newImageUrl,
+          function (newTexture) {
+            newTexture.minFilter = THREE.LinearFilter;
+            newTexture.magFilter = THREE.LinearFilter;
+            newTexture.format = THREE.RGBAFormat;
+            var oldTexture = imagePlane.material.map;
+            imagePlane.material.map = newTexture;
+            imagePlane.material.needsUpdate = true;
+            if (oldTexture && oldTexture !== newTexture) oldTexture.dispose();
+            var pathPart = newImageUrl.split("?")[0];
+            var fileName = decodeURIComponent(
+              pathPart.split("/").pop() || "design"
+            );
+            notifyDesignImageLoaded(fileName);
+          },
+          undefined,
+          function () {
+            notifyImageError("Design image swap failed");
+          }
+        );
+      };
+
       var dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
       dirLight.position.set(1, 2, 3);
       scene.add(dirLight);
