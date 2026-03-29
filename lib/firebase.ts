@@ -1,47 +1,12 @@
-/**
- * Firebase initialization for native (iOS/Android). Uses React Native AsyncStorage
- * for auth persistence. Metro resolves this file when platform is not web;
- * use firebase.web.ts for web builds.
- *
- * @module lib/firebase
- */
-import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
-import { getAuth, type Auth } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
-import { getStorage, type FirebaseStorage } from "firebase/storage";
+import { getApp, getApps, initializeApp } from "firebase/app";
+import { getFirestore } from "firebase/firestore";
+import { getFunctions } from "firebase/functions";
+import { getStorage } from "firebase/storage";
+
 import { firebaseConfig } from "./firebase.config";
 
-// React Native persistence – only in this file, not loaded on web
-// @ts-expect-error - getReactNativePersistence not in default auth types
-import { initializeAuth, getReactNativePersistence } from "@firebase/auth";
-import ReactNativeAsyncStorage from "@react-native-async-storage/async-storage";
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-const STORAGE_BUCKET = "gs://pygmalions-specs.firebasestorage.app";
-
-let app: FirebaseApp;
-let auth: Auth;
-let db: Firestore;
-let storage: FirebaseStorage;
-
-if (getApps().length === 0) {
-  app = initializeApp(firebaseConfig);
-  auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(ReactNativeAsyncStorage),
-  });
-  db = getFirestore(app);
-  storage = getStorage(app, STORAGE_BUCKET);
-} else {
-  app = getApp();
-  auth = getAuth(app);
-  db = getFirestore(app);
-  storage = getStorage(app, STORAGE_BUCKET);
-}
-
-/** Firebase App (for Functions, etc.). */
-export { app };
-/** Firebase Auth instance (native persistence). */
-export { auth };
-/** Firestore instance for users/savedDesigns. */
-export { db };
-/** Firebase Storage instance (pygmalions-specs bucket, e.g. targets/). */
-export { storage };
+export const firestore = getFirestore(app);
+export const storage = getStorage(app);
+export const functions = getFunctions(app, "us-central1");

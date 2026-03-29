@@ -1,20 +1,54 @@
-# Cloud Functions (Stripe placeholders)
+# Firebase Functions (Non-Stripe Utilities)
 
-Placeholder Cloud Functions for Stripe: create PaymentIntents and handle webhooks. The Stripe secret key and webhook secret must **never** live in the app; they are used only here (via environment config or Secret Manager).
+Stripe is extension-only in this project. Custom Stripe functions are intentionally removed to avoid overlap with the installed Firebase Stripe extension instance.
 
-## Setup
+## Implemented functions
 
-1. Install dependencies: `npm install`
-2. Build: `npm run build`
-3. Set secrets (choose one):
-   - **Local emulator:** Copy `.env.example` to `.env` and set `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`.
-   - **Production:** Use Firebase config (`firebase functions:config:set stripe.secret_key="sk_..."`) or Google Secret Manager and read them in the function.
+- `generateGarmentQRCodes` (HTTP): manual admin endpoint to generate garment QR PNGs.
 
-## Functions
+## `generateGarmentQRCodes` behavior
 
-- **createPaymentIntent** (callable): Call from the app with the user’s Firebase ID token. Creates a Stripe PaymentIntent and returns `clientSecret`. Validate amount and currency server-side.
-- **stripeWebhook** (HTTPS): Point Stripe Dashboard → Webhooks to this URL. Verifies signature with `STRIPE_WEBHOOK_SECRET` and handles events (placeholder handling).
+- Reads all docs in the `Garments` Firestore collection.
+- Uses `garmentId` from each document, with doc ID fallback if missing.
+- Skips documents where `garmentQRCodeStatus` is already `Generated`.
+- Generates a small QR PNG containing plain-text garment ID.
+- Uploads directly to:
+  - `gs://qr-assets-bucket/Garments/<garmentId>/code_1200x1200.png`
+- Updates Firestore document:
+  - `garmentQRCodeStatus: "Generated"`
+- Returns plain-text summary:
+  - number generated
+  - number skipped
+  - total garments scanned
+
+## Security
+
+`generateGarmentQRCodes` is IAM-protected:
+
+- Function is deployed with `invoker: "private"`.
+- Caller must present a valid Google identity token.
+- Caller must have `Cloud Run Invoker` permission on the function service.
+
+## Local development
+
+```bash
+cd functions
+npm install
+npm run build
+npm run serve
+```
+
+Call endpoint manually:
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
+  "https://generategarmentqrcodes-ypsnqgqppa-uc.a.run.app"
+```
 
 ## Deploy
 
-From project root: `firebase deploy --only functions`
+```bash
+cd functions
+npm run deploy
+```

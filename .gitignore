@@ -31,11 +31,18 @@ yarn-error.*
 *.pem
 
 # local env files
-.env*.local
+.env
+.env.*
+!.env.example
+functions/.env.local
+functions/.runtimeconfig.json
 
 # Firebase config (contains your project credentials)
 lib/firebase.config.ts
 scripts/serviceAccountKey.json
+.firebase/
+firebase-debug.log
+functions/lib/
 
 # typescript
 *.tsbuildinfo

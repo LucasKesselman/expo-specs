@@ -1,0 +1,87 @@
+Artie Daily Summary (Update 2) - 2026-03-24
+
+Overall goal (unchanged)
+------------------------
+- Slowly rebuild the app using Expo UI and iOS 26 native APIs.
+- Keep navigation and interaction native-first (especially native tabs).
+- Prioritize development builds over Expo Go so SDK 55 native behavior is visible.
+
+What was done in this update
+----------------------------
+1) iOS-specific native layout split was introduced
+- Added `app/_layout.ios.tsx` to run an iOS-native Host path (`@expo/ui/swift-ui`) in development builds.
+- Added a clear fallback message in iOS layout when native Host is unavailable, explicitly pointing to EAS dev builds.
+- Kept `app/_layout.tsx` as shared non-iOS fallback stack layout.
+
+2) Tabs architecture expanded for platform-specific behavior
+- Added `app/(tabs)/_layout.ios.tsx` using `expo-router/unstable-native-tabs` for iOS-native tab behavior.
+- Added `app/(tabs)/_layout.tsx` fallback tabs implementation for non-iOS using React Navigation tabs.
+- Added four active tab routes in current structure:
+  - `digital-marketplace`
+  - `physical-marketplace`
+  - `account`
+  - `camera`
+- Added a "selected digital design" bottom accessory placeholder UI in both iOS-native and fallback tab layouts.
+
+3) Marketplace foundation started (real data path for digital designs)
+- Added `app/(tabs)/digital-marketplace.tsx`:
+  - loads `DigitalDesigns` from Firestore
+  - deduplicates docs by ID in memory
+  - resolves marketplace preview images from Firebase Storage
+  - supports loading state, refresh control, empty state, and error message state
+- Added `components/marketplace/DigitalDesignCard.tsx` for reusable design card rendering with image background.
+- Added `types/marketplaceDesign.ts` with:
+  - `MarketplaceDesign` interface
+  - Firestore mapping helper
+  - defensive field parsing and date/price formatting helpers
+
+4) Placeholder routes maintained for staged rebuild
+- `physical-marketplace`, `account`, and `camera` remain intentional placeholders.
+- This keeps route scaffolding stable while deeper features are built incrementally.
+
+
+What still needs to be completed next
+-------------------------------------
+High priority
+1) Bring docs in sync with current app reality
+- `README.md` still says only minimal root files are active.
+- Update README to reflect current platform-specific layouts and active tabs.
+
+2) Validate native path in a dev build (not Expo Go)
+- Run and verify iOS behavior with EAS dev client.
+- Confirm native tabs, bottom accessory behavior, and iOS Host path work as expected.
+- Verify fallback behavior on non-iOS platforms still compiles and navigates correctly.
+
+3) Complete Firebase config confidence check
+- Verify `lib/firebase.config.ts` and `.env` values are correct for the current project.
+- Verify Firestore collection names/field names match live data expectations for marketplace mapping.
+- Confirm Storage path naming for marketplace images is correct and consistent in bucket.
+
+Medium priority
+4) Improve digital marketplace UX from raw debug-like content
+- Replace label-heavy card copy ("Document ID:", "Design Name:", etc.) with cleaner product-facing layout.
+- Surface `price` and `createdAt` in the card or detail flow if intended.
+- Add tap behavior (navigate to design detail or selection flow).
+
+5) Build out physical marketplace and account features
+- Replace placeholder screens with first functional versions.
+- Reintroduce only the minimum shared state/hooks needed for these screens.
+
+6) Define camera implementation path
+- Decide between Zappar re-integration, native camera-first, or hybrid AR strategy.
+- Then replace `camera` placeholder with first working slice.
+
+Repository hygiene and risk cleanup
+-----------------------------------
+- Review large pending deletion set before commit to ensure nothing required was removed unintentionally.
+- Confirm `.gitignore` handling for local secrets and build artifacts.
+- Decide whether generated `functions/lib` files should be committed or ignored consistently.
+- Remove any committed secret-like files if present (for example service account keys) and rotate credentials if needed.
+
+Quick restart checklist
+-----------------------
+- Open this file first: `documentation/daily-summary-2026-03-24-2.txt`
+- Use dev build workflow (not Expo Go) for iOS SDK 55 validation
+- Validate `digital-marketplace` Firestore + Storage load path end-to-end
+- Update README to match current routes/layout architecture
+- Pick next implementation target: camera vs physical marketplace vs account

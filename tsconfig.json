@@ -3,22 +3,16 @@
   "compilerOptions": {
     "strict": true,
     "forceConsistentCasingInFileNames": true,
-    "module": "esnext",
-    "paths": {
-      "@/*": [
-        "./*"
-      ],
-      "tailwind.config": [
-        "./tailwind.config.js"
-      ]
-    }
+    "module": "esnext"
   },
   "include": [
     "**/*.ts",
     "**/*.tsx",
     ".expo/types/**/*.ts",
-    "expo-env.d.ts",
-    "nativewind-env.d.ts",
-    "zpt.d.ts"
+    "expo-env.d.ts"
+  ],
+  "exclude": [
+    "app-example",
+    "node_modules"
   ]
 }

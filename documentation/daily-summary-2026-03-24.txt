@@ -1,0 +1,97 @@
+Artie Daily Summary - 2026-03-24
+
+Overall product goal (guiding direction)
+----------------------------------------
+- Rebuild the app gradually from the clean slate using Expo UI and iOS 26-native APIs.
+- Keep the product native-first with system navigation patterns (especially native tabs) and modern iOS visual language (including Liquid Glass style effects where appropriate).
+- Prioritize platform-correct behavior first, then layer in feature depth screen by screen.
+
+What was done today
+-------------------
+1) Project reset + architecture simplification
+- Large clean-slate pass removed old auth flows, legacy UI kit/gluestack wrappers, old hooks/contexts, old catalog/product/design abstractions, and legacy scripts.
+- Tailwind/NativeWind and related config files were removed from the app baseline.
+- Many legacy image assets and older camera/web artifacts were removed.
+
+2) App structure moved toward a minimal native-tabs baseline
+- Root routing is now centered on Expo Router with `(tabs)` as the default entry.
+- `app/index.tsx` now redirects to the tabs group.
+- `app/(tabs)/_layout.tsx` uses `expo-router/unstable-native-tabs`.
+- Tab routes currently in place: `index`, `camera`, `marketplace`, `account`.
+- Placeholder screens were added/updated for camera, marketplace, and account to establish clean scaffolding for future implementation.
+- Root layout (`app/_layout.tsx`) includes iOS `@expo/ui/swift-ui` Host wrapping with a React Native fallback.
+
+3) Backend narrowed to Firebase-first strategy
+- README and backend docs now state Stripe should be handled by the Firebase Stripe extension (extension-only direction).
+- Custom Firebase Functions were trimmed to non-Stripe utilities.
+- `functions/src/index.ts` now includes:
+  - `healthCheck` endpoint
+  - `generateGarmentQRCodes` endpoint (IAM private invoker)
+- QR generation flow now:
+  - reads Firestore `Garments`
+  - deduplicates garment IDs
+  - skips already generated entries
+- writes PNG QR codes to Storage under `Garments/<garmentId>/code_1200x1200.png`
+  - sets `garmentQRCodeStatus: "Generated"` on garment docs
+- `qrcode` dependency added in `functions/package.json`.
+- Firestore rules tightened to backend-only baseline (`allow read, write: if false;`).
+
+4) Documentation and setup updates
+- `README.md` rewritten to describe clean-slate state and Firebase backend direction.
+- `functions/README.md` updated with function behavior, IAM security notes, local usage, and deploy commands.
+- New planning/reference docs were added under `documentation/` (DB design + design philosophy rules).
+- `eas.json` is present for EAS workflow setup.
+
+
+What still needs to be completed
+--------------------------------
+High priority (tomorrow first)
+1) Resolve app-state documentation mismatch
+- `README.md` says only `app/_layout.tsx` + `app/index.tsx` are active, but active tab screens also exist.
+- Update README wording to match the actual active routes.
+
+2) Run full validation and fix any breakages
+- Run app checks locally: install deps, start Expo, verify tabs/routes render correctly on target platforms.
+- Use a dev build (not Expo Go) for validation so SDK 55 behavior is visible during testing.
+- Run functions build/deploy validation (`cd functions && npm run build`) and test `healthCheck` + QR endpoint behavior.
+- Confirm no stale imports or route references remain from deleted files.
+
+3) Confirm Firebase environment/config correctness
+- Verify `.firebaserc` project ID is correct for the intended environment.
+- Confirm Storage bucket constant in functions (`pygmalions-specs.firebasestorage.app`) matches the real target bucket.
+- Verify `.env` values are complete and aligned with the new architecture.
+
+Medium priority
+4) Decide and implement camera tab direction
+- Current `camera.tsx` is intentionally placeholder.
+- Define whether this becomes native camera capture, Zappar integration, or another AR path before building UI/API integration.
+
+5) Build real content for marketplace and account tabs
+- Replace placeholders with initial data model wiring and minimal MVP UI.
+- Define data-fetching boundaries now that old hooks/libs were removed.
+
+6) Complete backend hardening for QR flow
+- Replace QR payload TODO from raw garment ID to `garmentSecretCode` (or final secret strategy).
+- Add authorization policy and operational controls for who can invoke QR generation in production.
+- Add error handling/reporting strategy (partial failures, retries, observability).
+
+Cleanup and release readiness
+7) Remove generated artifacts from source control if not intended
+- `functions/lib/` compiled outputs exist; decide if they should be committed or excluded consistently.
+
+8) Git hygiene + final commit prep
+- Review large deletion set to ensure no accidentally removed files are needed.
+- Confirm `.gitignore` includes local secrets/build outputs appropriately.
+- Stage intentionally, then create one clean commit (or a small logical commit set).
+
+9) Optional: Add a short "Current Status" doc index
+- Add a single pointer doc in `documentation/` linking DB design + design philosophy + this daily summary for fast onboarding.
+
+
+Quick restart checklist for tomorrow
+------------------------------------
+- Pull up this file first: `documentation/daily-summary-2026-03-24.txt`
+- Verify app runs with a dev build (not Expo Go): `npm install && npm start` (then open in dev build client)
+- Verify functions build: `cd functions && npm install && npm run build`
+- Fix README state mismatch
+- Pick camera direction and start replacing placeholders in priority order

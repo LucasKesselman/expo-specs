@@ -1,5 +1,6 @@
 {
   "projects": {
+    "default": "your-firebase-project-id",
     "staging": "pygmalions-specs"
   },
   "targets": {},
