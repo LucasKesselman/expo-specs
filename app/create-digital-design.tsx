@@ -1,4 +1,3 @@
-import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { httpsCallable } from "firebase/functions";
@@ -17,8 +16,8 @@ import {
   View,
 } from "react-native";
 
-import { functions, storage } from "../lib/firebase";
 import { useAuth } from "../contexts/AuthContext";
+import { functions, storage } from "../lib/firebase";
 
 interface AssetSlot {
   uri: string;
@@ -28,41 +27,27 @@ interface AssetSlot {
   height?: number;
 }
 
-type AssetKey =
-  | "marketplaceImage"
-  | "frontTargetPng"
-  | "backTargetPng"
-  | "frontTargetZpt"
-  | "backTargetZpt";
-type MarketplaceStatus = "PUBLIC" | "PRIVATE";
+type AssetKey = "marketplaceImage" | "designAssetPng";
+type MarketplaceStatus = "INACTIVE" | "PUBLIC" | "PRIVATE";
 
 const ASSET_LABELS: Record<AssetKey, string> = {
   marketplaceImage: "Marketplace Display Image",
-  frontTargetPng: "Front Target Image (.png)",
-  backTargetPng: "Back Target Image (.png)",
-  frontTargetZpt: "Front Target File (.zpt)",
-  backTargetZpt: "Back Target File (.zpt)",
+  designAssetPng: "Design Asset (.png)",
 };
 
 const TEMP_UPLOAD_NAMES: Record<AssetKey, string> = {
   marketplaceImage: "original.jpg",
-  frontTargetPng: "frontTargetImage.png",
-  backTargetPng: "backTargetImage.png",
-  frontTargetZpt: "frontTargetImage.zpt",
-  backTargetZpt: "backTargetImage.zpt",
+  designAssetPng: "designAsset_01.png",
 };
 
-function isImageKey(key: AssetKey): boolean {
-  return key === "marketplaceImage" || key === "frontTargetPng" || key === "backTargetPng";
-}
-
-export default function CreatePhysicalDesignScreen() {
+export default function CreateDigitalDesignScreen() {
   const router = useRouter();
   const { loading, user } = useAuth();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [tagsText, setTagsText] = useState("");
   const [priceText, setPriceText] = useState("");
+  const [version, setVersion] = useState("");
   const [marketplaceStatus, setMarketplaceStatus] = useState<MarketplaceStatus>("PRIVATE");
   const [assets, setAssets] = useState<Partial<Record<AssetKey, AssetSlot>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -76,48 +61,29 @@ export default function CreatePhysicalDesignScreen() {
 
   const pickAsset = useCallback(async (key: AssetKey) => {
     try {
-      if (isImageKey(key)) {
-        const result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ["images"],
-          quality: 1,
-          allowsEditing: false,
-        });
-        if (result.canceled || result.assets.length === 0) return;
-        const picked = result.assets[0];
-        setAssets((prev) => ({
-          ...prev,
-          [key]: {
-            uri: picked.uri,
-            name: picked.fileName ?? TEMP_UPLOAD_NAMES[key],
-            mimeType: picked.mimeType ?? "image/png",
-            width: picked.width,
-            height: picked.height,
-          },
-        }));
-      } else {
-        const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
-        if (result.canceled || result.assets.length === 0) return;
-        const picked = result.assets[0];
-        setAssets((prev) => ({
-          ...prev,
-          [key]: {
-            uri: picked.uri,
-            name: picked.name,
-            mimeType: picked.mimeType ?? "application/octet-stream",
-          },
-        }));
-      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 1,
+        allowsEditing: false,
+      });
+      if (result.canceled || result.assets.length === 0) return;
+      const picked = result.assets[0];
+      setAssets((prev) => ({
+        ...prev,
+        [key]: {
+          uri: picked.uri,
+          name: picked.fileName ?? TEMP_UPLOAD_NAMES[key],
+          mimeType: picked.mimeType ?? "image/png",
+          width: picked.width,
+          height: picked.height,
+        },
+      }));
     } catch {
       Alert.alert("Picker Error", `Could not pick file for ${ASSET_LABELS[key]}.`);
     }
   }, []);
 
-  const allAssetsSelected =
-    assets.marketplaceImage &&
-    assets.frontTargetPng &&
-    assets.backTargetPng &&
-    assets.frontTargetZpt &&
-    assets.backTargetZpt;
+  const allAssetsSelected = assets.marketplaceImage && assets.designAssetPng;
   const marketplaceImageMeetsSpec =
     assets.marketplaceImage?.width === 1440 && assets.marketplaceImage?.height === 2560;
 
@@ -127,6 +93,7 @@ export default function CreatePhysicalDesignScreen() {
   const formValid =
     name.trim().length > 0 &&
     description.trim().length > 0 &&
+    version.trim().length > 0 &&
     priceValid &&
     marketplaceImageMeetsSpec &&
     !!allAssetsSelected;
@@ -135,7 +102,7 @@ export default function CreatePhysicalDesignScreen() {
     if (!formValid || isSubmitting) return;
 
     if (!user) {
-      Alert.alert("Not Signed In", "Please log in from the Account tab to create a physical design.", [
+      Alert.alert("Not Signed In", "Please log in from the Account tab to create a digital design.", [
         { text: "Cancel", style: "cancel" },
         { text: "Go to Login", onPress: () => router.push("/(auth)/landing") },
       ]);
@@ -167,32 +134,35 @@ export default function CreatePhysicalDesignScreen() {
         await uploadBytes(fileRef, blob, { contentType: slot.mimeType });
       }
 
-      setStatusMessage("Creating PhysicalDesigns record...");
-      const createPhysicalDesign = httpsCallable<
+      setStatusMessage("Creating DigitalDesigns record...");
+      const createDigitalDesign = httpsCallable<
         {
           name: string;
           description: string;
           tags: string[];
           priceAmount: number;
           marketplaceStatus: MarketplaceStatus;
+          version: string;
         },
         { designId: string }
-      >(functions, "createPhysicalDesign");
+      >(functions, "createDigitalDesign");
 
-      const result = await createPhysicalDesign({
+      const result = await createDigitalDesign({
         name: name.trim(),
         description: description.trim(),
         tags,
         priceAmount: parsedPriceAmount,
         marketplaceStatus,
+        version: version.trim(),
       });
 
       setStatusMessage(null);
-      Alert.alert("Physical Design Created", `Design ID: ${result.data.designId}`);
+      Alert.alert("Digital Design Created", `Design ID: ${result.data.designId}`);
       setName("");
       setDescription("");
       setTagsText("");
       setPriceText("");
+      setVersion("");
       setMarketplaceStatus("PRIVATE");
       setAssets({});
     } catch (error) {
@@ -211,6 +181,7 @@ export default function CreatePhysicalDesignScreen() {
     description,
     parsedPriceAmount,
     marketplaceStatus,
+    version,
     user,
     router,
   ]);
@@ -241,7 +212,7 @@ export default function CreatePhysicalDesignScreen() {
           style={styles.input}
           value={name}
           onChangeText={setName}
-          placeholder="e.g. Summer Bloom Tee"
+          placeholder="e.g. Summer Bloom v2"
           placeholderTextColor="#6B7280"
           editable={!isSubmitting}
         />
@@ -251,11 +222,21 @@ export default function CreatePhysicalDesignScreen() {
           style={[styles.input, styles.multilineInput]}
           value={description}
           onChangeText={setDescription}
-          placeholder="Describe the physical design for marketplace and production context"
+          placeholder="Describe the digital design for marketplace listing"
           placeholderTextColor="#6B7280"
           editable={!isSubmitting}
           multiline
           textAlignVertical="top"
+        />
+
+        <Text style={styles.label}>Version *</Text>
+        <TextInput
+          style={styles.input}
+          value={version}
+          onChangeText={setVersion}
+          placeholder="e.g. RT.2504.1"
+          placeholderTextColor="#6B7280"
+          editable={!isSubmitting}
         />
 
         <Text style={styles.label}>Tags (comma-separated)</Text>
@@ -282,7 +263,7 @@ export default function CreatePhysicalDesignScreen() {
 
         <Text style={styles.label}>Initial Marketplace Status *</Text>
         <View style={styles.statusChoiceRow}>
-          {(["PUBLIC", "PRIVATE"] as MarketplaceStatus[]).map((statusOption) => {
+          {(["INACTIVE", "PRIVATE", "PUBLIC"] as MarketplaceStatus[]).map((statusOption) => {
             const selected = statusOption === marketplaceStatus;
             return (
               <Pressable
@@ -304,7 +285,7 @@ export default function CreatePhysicalDesignScreen() {
         </View>
         <Text style={styles.helpText}>
           Sets the initial <Text style={styles.inlineCode}>marketplaceStatus</Text> value on the
-          PhysicalDesigns document.
+          DigitalDesigns document.
         </Text>
 
         <Text style={[styles.sectionTitle, styles.assetsSectionTitle]}>Assets</Text>
@@ -330,6 +311,11 @@ export default function CreatePhysicalDesignScreen() {
               <Text style={styles.helpText}>
                 Required as <Text style={styles.inlineCode}>original.jpg</Text> at exactly 1440 x
                 2560.
+              </Text>
+            ) : null}
+            {key === "designAssetPng" ? (
+              <Text style={styles.helpText}>
+                Uploaded as <Text style={styles.inlineCode}>designAsset_01.png</Text>.
               </Text>
             ) : null}
           </View>
@@ -360,7 +346,7 @@ export default function CreatePhysicalDesignScreen() {
           {isSubmitting ? (
             <ActivityIndicator color="#111827" size="small" />
           ) : (
-            <Text style={styles.submitButtonText}>Create Physical Design</Text>
+            <Text style={styles.submitButtonText}>Create Digital Design</Text>
           )}
         </Pressable>
       </ScrollView>
@@ -433,6 +419,7 @@ const styles = StyleSheet.create({
   },
   statusChoiceRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 10,
     marginTop: 4,
   },

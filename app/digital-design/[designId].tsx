@@ -1,10 +1,11 @@
 import { useLocalSearchParams } from "expo-router";
 import { Image } from "expo-image";
 import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { collection, doc, getDoc } from "firebase/firestore";
 
 import { firestore } from "../../lib/firebase";
+import { useSelectedDigitalDesign } from "../../contexts/SelectedDigitalDesignContext";
 import { mapFirestoreDocToMarketplaceDesign, type MarketplaceDesign } from "../../types/marketplaceDesign";
 
 const DIGITAL_DESIGNS_COLLECTION_CANDIDATES = ["DigitalDesigns"] as const;
@@ -35,6 +36,7 @@ function getInitialDesignFromParams(params: ReturnType<typeof useLocalSearchPara
   const name = getParamAsString(params.name);
   const description = getParamAsString(params.description);
   const updatedAt = getParamAsString(params.updatedAt);
+  const miniImageUrl = getParamAsString(params.miniImageUrl);
   const thumbnailUrl = getParamAsString(params.thumbnailUrl);
   const fullImageUrl = getParamAsString(params.fullImageUrl);
   const sourceCollection =
@@ -48,6 +50,7 @@ function getInitialDesignFromParams(params: ReturnType<typeof useLocalSearchPara
     description: description || "No description provided.",
     updatedAt: updatedAt || "N/A",
     price: "N/A",
+    miniImageUrl: miniImageUrl || null,
     thumbnailUrl: thumbnailUrl || null,
     fullImageUrl: fullImageUrl || null,
     imageUrl: fullImageUrl || thumbnailUrl || null,
@@ -70,8 +73,10 @@ export default function DigitalDesignDetailScreen() {
   const initialDesign = useMemo(() => getInitialDesignFromParams(params), [params]);
   const [design, setDesign] = useState<MarketplaceDesign | null>(initialDesign);
   const [isHydrating, setIsHydrating] = useState(false);
+  const [isUpdatingSelection, setIsUpdatingSelection] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const AppleZoomTarget = useMemo(() => getAppleZoomTarget(), []);
+  const { selectedDesign, selectDesign, clearSelectedDesign } = useSelectedDigitalDesign();
 
   useEffect(() => {
     if (!designId) {
@@ -135,6 +140,32 @@ export default function DigitalDesignDetailScreen() {
   }, [designId, params.collection]);
 
   const displayImageUrl = design?.fullImageUrl ?? design?.thumbnailUrl ?? design?.imageUrl ?? null;
+  const isCurrentSelection =
+    !!design &&
+    selectedDesign?.sourceDocId === design.sourceDocId &&
+    selectedDesign?.sourceCollection === design.sourceCollection;
+
+  const selectionButtonText = isCurrentSelection ? "Unselect design" : "Select this design";
+
+  const handleSelectionPress = async () => {
+    if (!design || isUpdatingSelection) {
+      return;
+    }
+
+    setErrorMessage(null);
+    setIsUpdatingSelection(true);
+    try {
+      if (isCurrentSelection) {
+        await clearSelectedDesign();
+      } else {
+        await selectDesign(design);
+      }
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Unable to update selected design.");
+    } finally {
+      setIsUpdatingSelection(false);
+    }
+  };
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -164,6 +195,23 @@ export default function DigitalDesignDetailScreen() {
 
       <Text style={styles.title}>{design?.name ?? "Untitled design"}</Text>
       <Text style={styles.description}>{design?.description ?? "No description provided."}</Text>
+
+      <Pressable
+        onPress={() => {
+          void handleSelectionPress();
+        }}
+        style={({ pressed }) => [
+          styles.selectionButton,
+          isCurrentSelection ? styles.selectionButtonSelected : null,
+          pressed ? styles.selectionButtonPressed : null,
+          isUpdatingSelection ? styles.selectionButtonDisabled : null,
+        ]}
+        disabled={!design || isUpdatingSelection}
+      >
+        <Text style={styles.selectionButtonText}>
+          {isUpdatingSelection ? "Updating selection..." : selectionButtonText}
+        </Text>
+      </Pressable>
 
       <View style={styles.metaContainer}>
         <Text style={styles.metaLabel}>Document ID</Text>
@@ -233,6 +281,29 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginTop: 10,
     lineHeight: 22,
+  },
+  selectionButton: {
+    marginTop: 16,
+    minHeight: 52,
+    borderRadius: 12,
+    backgroundColor: "#2563EB",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  selectionButtonSelected: {
+    backgroundColor: "#0F766E",
+  },
+  selectionButtonPressed: {
+    opacity: 0.9,
+  },
+  selectionButtonDisabled: {
+    opacity: 0.7,
+  },
+  selectionButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "800",
   },
   metaContainer: {
     marginTop: 14,

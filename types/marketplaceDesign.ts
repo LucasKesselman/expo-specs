@@ -9,6 +9,7 @@ export interface MarketplaceDesign {
   updatedAt: string;
   price: string;
   thumbnailUrl: string | null;
+  miniImageUrl: string | null;
   fullImageUrl: string | null;
   imageUrl: string | null;
   createdAt: string;
@@ -78,6 +79,11 @@ export function mapFirestoreDocToMarketplaceDesign(
     data.marketplaceThumbnailImageURL,
     data.marketplaceThumbnailUrl,
   ]);
+  const miniImageUrl = firstValidString([
+    data.marketplaceMiniImageURL,
+    data.marketplaceMiniImageUrl,
+    data.marketplaceMiniUrl,
+  ]);
   const fullImageUrl = firstValidString([
     data.marketplaceCardImageURL,
     data.marketplaceFullImageUrl,
@@ -92,6 +98,7 @@ export function mapFirestoreDocToMarketplaceDesign(
     updatedAt: formatCreatedAt(data.lastUpdatedAt),
     price: formatPrice(data.priceAmount),
     thumbnailUrl,
+    miniImageUrl,
     fullImageUrl,
     imageUrl: fullImageUrl,
     createdAt: formatCreatedAt(data.createdAt),

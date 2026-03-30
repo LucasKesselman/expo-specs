@@ -1,6 +1,7 @@
 import { Stack } from "expo-router";
 import type { ComponentType, ReactNode } from "react";
 import { Text, View } from "react-native";
+import { AuthProvider } from "../contexts/AuthContext";
 
 // Development-build-first path:
 // This file is intentionally iOS-native and expects an EAS development build.
@@ -27,20 +28,45 @@ function IOSHost({ children }: { children: ReactNode }) {
 export default function RootLayoutIOS() {
   return (
     <IOSHost>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen
-          name="digital-design/[designId]"
-          options={{
-            headerShown: true,
-            title: "Digital Design",
-            headerStyle: { backgroundColor: "#111827" },
-            headerTintColor: "#E5E7EB",
-            headerTitleStyle: { fontWeight: "700" },
-            presentation: "card",
-          }}
-        />
-      </Stack>
+      <AuthProvider>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen
+            name="digital-design/[designId]"
+            options={{
+              headerShown: true,
+              title: "Digital Design",
+              headerStyle: { backgroundColor: "#111827" },
+              headerTintColor: "#E5E7EB",
+              headerTitleStyle: { fontWeight: "700" },
+              presentation: "card",
+            }}
+          />
+          <Stack.Screen
+            name="create-digital-design"
+            options={{
+              headerShown: true,
+              title: "Create Digital Design",
+              headerStyle: { backgroundColor: "#111827" },
+              headerTintColor: "#E5E7EB",
+              headerTitleStyle: { fontWeight: "700" },
+              presentation: "card",
+            }}
+          />
+          <Stack.Screen
+            name="create-physical-design"
+            options={{
+              headerShown: true,
+              title: "Create Physical Design",
+              headerStyle: { backgroundColor: "#111827" },
+              headerTintColor: "#E5E7EB",
+              headerTitleStyle: { fontWeight: "700" },
+              presentation: "card",
+            }}
+          />
+        </Stack>
+      </AuthProvider>
     </IOSHost>
   );
 }

@@ -228,6 +228,11 @@ export const processMarketplaceAssetDisplayImage = onObjectFinalized(
         derivativePathMap.thumbnail,
         derivativeTokenMap.thumbnail,
       );
+      const formattedMiniImageUrl = buildFirebaseDownloadUrl(
+        bucketName,
+        derivativePathMap.mini,
+        derivativeTokenMap.mini,
+      );
       const formattedCardImageUrl = buildFirebaseDownloadUrl(
         bucketName,
         derivativePathMap.card,
@@ -243,6 +248,7 @@ export const processMarketplaceAssetDisplayImage = onObjectFinalized(
           {
             marketplaceStatus: existingMarketplaceStatus,
             marketplaceImageProcessingStatus: "PROCESSING_SUCCESSFUL",
+            marketplaceMiniImageURL: formattedMiniImageUrl,
             marketplaceThumbnailImageURL: formattedThumbnailUrl,
             marketplaceCardImageURL: formattedCardImageUrl,
             lastUpdatedAt: now,

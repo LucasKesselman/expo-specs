@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState, type ComponentType, type ReactNode } from "react";
 import { Link } from "expo-router";
 import { Image as ExpoImage } from "expo-image";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import {
   ActivityIndicator,
   FlatList,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -11,6 +13,7 @@ import {
   View,
   type ViewStyle,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { collection, getDocs, type DocumentData, type QueryDocumentSnapshot } from "firebase/firestore";
 
 import { DigitalDesignCard } from "../../components/marketplace/DigitalDesignCard";
@@ -18,6 +21,8 @@ import { firestore } from "../../lib/firebase";
 import { mapFirestoreDocToMarketplaceDesign, type MarketplaceDesign } from "../../types/marketplaceDesign";
 
 const DIGITAL_DESIGNS_COLLECTION_CANDIDATES = ["DigitalDesigns"] as const;
+const FALLBACK_ACCESSORY_HEIGHT = 70;
+const FALLBACK_ACCESSORY_SPACING = 16;
 type AppleZoomLink = typeof Link & {
   AppleZoom?: ComponentType<{ children: ReactNode }>;
 };
@@ -62,10 +67,16 @@ function getSortTimestamp(doc: QueryDocumentSnapshot<DocumentData>): number {
 }
 
 export default function DigitalMarketplaceTabScreen() {
+  const tabBarHeight = useBottomTabBarHeight();
+  const insets = useSafeAreaInsets();
   const [designs, setDesigns] = useState<MarketplaceDesign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const listBottomInset =
+    Platform.OS === "ios"
+      ? undefined
+      : tabBarHeight + FALLBACK_ACCESSORY_HEIGHT + FALLBACK_ACCESSORY_SPACING + insets.bottom;
 
   const loadDigitalDesigns = useCallback(async (refresh = false) => {
     if (refresh) {
@@ -183,7 +194,10 @@ export default function DigitalMarketplaceTabScreen() {
         maxToRenderPerBatch={8}
         windowSize={7}
         removeClippedSubviews={true}
-        contentContainerStyle={designs.length === 0 ? styles.emptyListContentContainer : styles.listContentContainer}
+        contentContainerStyle={[
+          designs.length === 0 ? styles.emptyListContentContainer : styles.listContentContainer,
+          listBottomInset != null ? { paddingBottom: listBottomInset } : null,
+        ]}
         columnWrapperStyle={designs.length > 0 ? styles.columnWrapper : undefined}
         refreshControl={
           <RefreshControl

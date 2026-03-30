@@ -1,32 +1,48 @@
 import { Tabs } from "expo-router";
 import { BottomTabBar, type BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
+import { Platform, StyleSheet, Text, View } from "react-native";
+
+import { useSelectedDigitalDesign } from "../../contexts/SelectedDigitalDesignContext";
 
 // Shared fallback tabs for non-iOS platforms.
 // iOS-specific variant lives in: app/(tabs)/_layout.ios.tsx
 function SelectedDigitalDesignAccessory() {
+  const { selectedDesign, isLoaded } = useSelectedDigitalDesign();
+
+  if (!isLoaded || !selectedDesign) {
+    return null;
+  }
+
   return (
     <View style={selectedDigitalDesignAccessoryStyles.container}>
       <View style={selectedDigitalDesignAccessoryStyles.leftContent}>
-        <Text style={selectedDigitalDesignAccessoryStyles.titleText}>
-          Currently selected digital design:
-        </Text>
-        <Text style={selectedDigitalDesignAccessoryStyles.subtitleText}>
-          placeholder design name
-        </Text>
+        <Text style={selectedDigitalDesignAccessoryStyles.titleText}>Currently selected digital design:</Text>
+        <Text style={selectedDigitalDesignAccessoryStyles.subtitleText}>{selectedDesign.name}</Text>
       </View>
 
-      <View style={selectedDigitalDesignAccessoryStyles.imagePlaceholder}>
-        <Text style={selectedDigitalDesignAccessoryStyles.imagePlaceholderText}>
-          image
-        </Text>
-      </View>
+      {selectedDesign.miniImageUrl ? (
+        <Image
+          source={{ uri: selectedDesign.miniImageUrl }}
+          style={selectedDigitalDesignAccessoryStyles.previewImage}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+        />
+      ) : (
+        <View style={selectedDigitalDesignAccessoryStyles.imagePlaceholder}>
+          <Text style={selectedDigitalDesignAccessoryStyles.imagePlaceholderText}>image not found</Text>
+        </View>
+      )}
     </View>
   );
 }
 
 function FallbackTabBarWithSelectedDigitalDesignAccessory(props: BottomTabBarProps) {
+  if (Platform.OS !== "web") {
+    return <BottomTabBar {...props} />;
+  }
+
   return (
     <View style={fallbackTabBarStyles.container}>
       <BottomTabBar {...props} />
@@ -128,10 +144,18 @@ const selectedDigitalDesignAccessoryStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  previewImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+    backgroundColor: "#374151",
+  },
   imagePlaceholderText: {
     color: "#D1D5DB",
     fontSize: 11,
     fontWeight: "600",
+    textAlign: "center",
+    paddingHorizontal: 6,
   },
 });
 
