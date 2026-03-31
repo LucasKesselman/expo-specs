@@ -108,3 +108,5 @@
 		color: color of the garment blank fabric from manufacture
 		qrCodeStatus: "Pending"|"Generated"|...etc
 		version: internal ID for design team
+		verificationStatus: 
+		

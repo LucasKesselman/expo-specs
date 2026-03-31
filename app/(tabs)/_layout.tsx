@@ -103,6 +103,15 @@ export default function TabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="wardrobe"
+        options={{
+          title: "Wardrobe",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="shirt-outline" color={color} size={size} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }

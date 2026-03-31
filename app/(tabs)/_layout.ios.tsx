@@ -62,6 +62,11 @@ export default function TabsLayoutIOS() {
         <Icon sf={{ default: "camera.fill", selected: "camera.fill" }} />
       </NativeTabs.Trigger>
 
+      <NativeTabs.Trigger name="wardrobe">
+        <Label>Wardrobe</Label>
+        <Icon sf="tshirt.fill" />
+      </NativeTabs.Trigger>
+
       {nativeTabsWithBottomAccessory.BottomAccessory ? (
         <nativeTabsWithBottomAccessory.BottomAccessory>
           <SelectedDigitalDesignAccessory />
