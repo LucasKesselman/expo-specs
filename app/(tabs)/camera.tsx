@@ -1,11 +1,17 @@
 import { StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 
 export default function CameraTabScreen() {
   return (
     <View style={cameraTabScreenStyles.placeholderScreenContainer}>
-      {/* Intentional placeholder while camera integration is designed and built. */}
-      <Text style={cameraTabScreenStyles.centeredPlaceholderText}>
-        placeholder zappar camera content
+      <Image
+        source={require("../../assets/artie-assets/UIStuff/fullFigure.gif")}
+        style={cameraTabScreenStyles.figure}
+        contentFit="contain"
+      />
+      <Text style={cameraTabScreenStyles.centeredPlaceholderText}>AR Camera Coming Soon</Text>
+      <Text style={cameraTabScreenStyles.subText}>
+        We are polishing the next interactive camera experience for Artie.
       </Text>
     </View>
   );
@@ -19,10 +25,24 @@ const cameraTabScreenStyles = StyleSheet.create({
     paddingHorizontal: 24,
     backgroundColor: "#111827",
   },
+  figure: {
+    width: 210,
+    height: 260,
+    marginBottom: 14,
+    opacity: 0.95,
+  },
   centeredPlaceholderText: {
-    color: "#e2e8f0",
-    fontSize: 20,
-    fontWeight: "600",
+    color: "#E2E8F0",
+    fontSize: 24,
+    fontWeight: "700",
     textAlign: "center",
+  },
+  subText: {
+    marginTop: 10,
+    color: "#9CA3AF",
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+    maxWidth: 280,
   },
 });

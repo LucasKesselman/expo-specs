@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState, type ComponentType, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Link } from "expo-router";
 import { Image as ExpoImage } from "expo-image";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import {
-  ActivityIndicator,
+  Animated,
+  Easing,
   FlatList,
+  Image,
   Platform,
   Pressable,
   RefreshControl,
@@ -73,6 +75,7 @@ export default function DigitalMarketplaceTabScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const loadingSpin = useRef(new Animated.Value(0)).current;
   const listBottomInset =
     Platform.OS === "ios"
       ? undefined
@@ -143,11 +146,35 @@ export default function DigitalMarketplaceTabScreen() {
     }
   }, [designs]);
 
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(loadingSpin, {
+        toValue: 1,
+        duration: 1100,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    );
+    loop.start();
+    return () => {
+      loop.stop();
+      loadingSpin.setValue(0);
+    };
+  }, [loadingSpin]);
+
   if (isLoading && designs.length === 0) {
+    const rotate = loadingSpin.interpolate({
+      inputRange: [0, 1],
+      outputRange: ["0deg", "360deg"],
+    });
+
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator color="#93C5FD" size="large" />
-        <Text style={styles.loadingText}>Loading digital designs...</Text>
+        <Animated.Image
+          source={require("../../assets/artie-assets/UIStuff/ArtieSymbolWhite.png")}
+          style={[styles.loadingBrand, { transform: [{ rotate }] }]}
+          resizeMode="contain"
+        />
       </View>
     );
   }
@@ -208,7 +235,16 @@ export default function DigitalMarketplaceTabScreen() {
             tintColor="#93C5FD"
           />
         }
-        ListEmptyComponent={<Text style={styles.emptyText}>No digital designs found yet.</Text>}
+        ListEmptyComponent={
+          <View style={styles.emptyStateContainer}>
+            <Image
+              source={require("../../assets/artie-assets/UIStuff/artieiconA.png")}
+              style={styles.emptyStateIcon}
+              resizeMode="contain"
+            />
+            <Text style={styles.emptyText}>No digital designs found yet.</Text>
+          </View>
+        }
       />
     </View>
   );
@@ -227,11 +263,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     backgroundColor: "#111827",
   },
-  loadingText: {
-    color: "#E2E8F0",
-    fontSize: 16,
-    fontWeight: "600",
-    textAlign: "center",
+  loadingBrand: {
+    width: 76,
+    height: 76,
+    opacity: 0.9,
+    marginBottom: 4,
   },
   errorText: {
     color: "#FCA5A5",
@@ -262,6 +298,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
+  },
+  emptyStateContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyStateIcon: {
+    width: 66,
+    height: 72,
+    opacity: 0.92,
+    marginBottom: 10,
   },
   emptyText: {
     color: "#CBD5E1",

@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -36,6 +36,11 @@ export default function SignupScreen() {
 
   return (
     <View style={styles.container}>
+      <Image
+        source={require("../../assets/artie-assets/UIStuff/iconArtieLogo.png")}
+        style={styles.wordmark}
+        resizeMode="contain"
+      />
       <Text style={styles.title}>Create your account</Text>
 
       <TextInput
@@ -84,7 +89,14 @@ export default function SignupScreen() {
         disabled={submitting || !email || !password || !confirmPassword}
       >
         {submitting ? (
-          <ActivityIndicator color="#111827" size="small" />
+          <View style={styles.loadingContent}>
+            <Image
+              source={require("../../assets/artie-assets/UIStuff/ArtieSymbolBlack.png")}
+              style={styles.loadingIcon}
+              resizeMode="contain"
+            />
+            <ActivityIndicator color="#111827" size="small" />
+          </View>
         ) : (
           <Text style={styles.submitButtonText}>Sign Up</Text>
         )}
@@ -100,6 +112,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#111827",
     paddingHorizontal: 20,
     paddingTop: 36,
+  },
+  wordmark: {
+    width: 148,
+    height: 32,
+    marginBottom: 12,
+    opacity: 0.92,
   },
   title: {
     color: "#F9FAFB",
@@ -137,6 +155,15 @@ const styles = StyleSheet.create({
     color: "#111827",
     fontSize: 16,
     fontWeight: "800",
+  },
+  loadingContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  loadingIcon: {
+    width: 16,
+    height: 16,
   },
   buttonPressed: {
     opacity: 0.75,
