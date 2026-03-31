@@ -13,6 +13,8 @@ const STRIPE_WEBHOOK_EVENTS_COLLECTION = "StripeWebhookEvents";
 
 const DEFAULT_PRINT_STATUS = "NOT_PRINTED";
 const DEFAULT_QR_CODE_STATUS = "NOT_GENERATED";
+const DEFAULT_SIZE: GarmentSize = "M";
+const DEFAULT_COLOR = "UNSPECIFIED";
 
 type GarmentSize = "XS" | "S" | "M" | "L" | "XL";
 
@@ -112,6 +114,20 @@ function getMetadataValue(
   throw new Error(`Missing required line item metadata field: ${fieldName}.`);
 }
 
+function getOptionalMetadataValue(
+  metadata: Record<string, string>,
+  keys: readonly string[],
+): string | undefined {
+  for (const key of keys) {
+    const value = metadata[key];
+    if (value) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
 function buildLineItemMetadata(lineItem: Stripe.LineItem): Record<string, string> {
   const lineItemWithMetadata = lineItem as Stripe.LineItem & { metadata?: Stripe.Metadata };
   const lineItemMetadata = normalizeMetadataRecord(lineItemWithMetadata.metadata);
@@ -172,6 +188,7 @@ export const createGarment = onRequest({ region: REGION }, async (req, res) => {
 
     const session = event.data.object as Stripe.Checkout.Session;
     const sessionId = normalizeRequiredString(session.id, "session.id");
+    const sessionMetadata = normalizeMetadataRecord(session.metadata);
     eventRef = db.collection(STRIPE_WEBHOOK_EVENTS_COLLECTION).doc(event.id);
 
     const shouldProcess = await db.runTransaction(async (transaction) => {
@@ -218,22 +235,31 @@ export const createGarment = onRequest({ region: REGION }, async (req, res) => {
 
     lineItems.data.forEach((lineItem, lineItemIndex) => {
       const metadata = buildLineItemMetadata(lineItem);
+      const resolvedMetadata = {
+        ...sessionMetadata,
+        ...metadata,
+      };
 
       const owner = normalizeRequiredString(
-        getMetadataValue(metadata, ["owner", "ownerUid", "uid"], "owner"),
+        getMetadataValue(resolvedMetadata, ["owner", "ownerUid", "uid"], "owner"),
         "owner",
       );
-      const digitalDesignId = normalizeRequiredString(
-        getMetadataValue(metadata, ["digitalDesignId", "digitalDesign"], "digitalDesignId"),
-        "digitalDesignId",
-      );
       const physicalDesignId = normalizeRequiredString(
-        getMetadataValue(metadata, ["physicalDesignId", "physicalDesign"], "physicalDesignId"),
+        getMetadataValue(resolvedMetadata, ["physicalDesignId", "physicalDesign"], "physicalDesignId"),
         "physicalDesignId",
       );
-      const size = normalizeSize(getMetadataValue(metadata, ["size"], "size"));
-      const color = normalizeRequiredString(getMetadataValue(metadata, ["color"], "color"), "color");
-      const version = normalizeOptionalString(metadata.version);
+      const rawDigitalDesignId = getOptionalMetadataValue(resolvedMetadata, [
+        "digitalDesignId",
+        "digitalDesign",
+      ]);
+      const digitalDesignId = rawDigitalDesignId
+        ? normalizeRequiredString(rawDigitalDesignId, "digitalDesignId")
+        : undefined;
+      const rawSize = getOptionalMetadataValue(resolvedMetadata, ["size"]);
+      const size = rawSize ? normalizeSize(rawSize) : DEFAULT_SIZE;
+      const rawColor = getOptionalMetadataValue(resolvedMetadata, ["color"]);
+      const color = rawColor ? normalizeRequiredString(rawColor, "color") : DEFAULT_COLOR;
+      const version = normalizeOptionalString(resolvedMetadata.version);
 
       const quantity = normalizeQuantity(lineItem.quantity);
       for (let unitIndex = 0; unitIndex < quantity; unitIndex += 1) {
@@ -248,7 +274,6 @@ export const createGarment = onRequest({ region: REGION }, async (req, res) => {
         const garmentPayload: Record<string, unknown> = {
           id: garmentId,
           owner,
-          digitalDesign: db.doc(`${DIGITAL_DESIGNS_COLLECTION}/${digitalDesignId}`),
           physicalDesign: db.doc(`${PHYSICAL_DESIGNS_COLLECTION}/${physicalDesignId}`),
           printStatus: DEFAULT_PRINT_STATUS,
           size,
@@ -260,6 +285,9 @@ export const createGarment = onRequest({ region: REGION }, async (req, res) => {
 
         if (version) {
           garmentPayload.version = version;
+        }
+        if (digitalDesignId) {
+          garmentPayload.digitalDesign = db.doc(`${DIGITAL_DESIGNS_COLLECTION}/${digitalDesignId}`);
         }
 
         batch.set(garmentRef, garmentPayload, { merge: true });

@@ -11,18 +11,32 @@ This project uses the Firebase Stripe extension and also includes a custom Strip
 
 - Verifies Stripe webhook signatures.
 - Processes only `checkout.session.completed`.
-- Reads garment fields from Stripe line item metadata:
+- Reads garment fields from Stripe metadata (line item/product/price metadata first, then session metadata fallback):
   - `owner` (or `ownerUid`/`uid`)
-  - `digitalDesignId` (or `digitalDesign`)
   - `physicalDesignId` (or `physicalDesign`)
-  - `size`
-  - `color`
+  - optional: `digitalDesignId` (or `digitalDesign`)
+  - optional: `size` (defaults to `M`)
+  - optional: `color` (defaults to `UNSPECIFIED`)
   - optional: `version`
 - Writes garment docs into `Garments/{garmentId}` with:
   - `printStatus: "NOT_PRINTED"`
   - `qrCodeStatus: "NOT_GENERATED"`
 - Updates `Users/{owner}.ownedGarments` using `arrayUnion`.
 - Uses idempotency records in `StripeWebhookEvents/{eventId}` to prevent duplicate processing.
+
+## Checkout sessions (Firebase Stripe extension)
+
+The app creates Checkout Session documents for signed-in users and lets the extension create Stripe Checkout sessions:
+
+- Primary path: `customers/{uid}/checkout_sessions`
+
+Session docs should include:
+
+- `price` (Stripe price ID)
+- `mode: "payment"`
+- `success_url`
+- `cancel_url`
+- `metadata.owner` and `metadata.physicalDesignId`
 
 ## `generateGarmentQRCodes` behavior
 

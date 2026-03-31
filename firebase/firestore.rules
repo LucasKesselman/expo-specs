@@ -12,6 +12,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Allow signed-in users to create/read their own Stripe checkout sessions.
+    match /customers/{uid}/checkout_sessions/{sessionId} {
+      allow create, get, list: if request.auth != null && request.auth.uid == uid;
+      allow update, delete: if false;
+    }
+
     // Deny everything else by default.
     match /{document=**} {
       allow read, write: if false;

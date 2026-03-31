@@ -1,9 +1,10 @@
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Image } from "expo-image";
 import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { collection, doc, getDoc } from "firebase/firestore";
 
+import { useAuth } from "../../contexts/AuthContext";
 import { firestore } from "../../lib/firebase";
 import { mapFirestoreDocToMarketplaceDesign, type MarketplaceDesign } from "../../types/marketplaceDesign";
 
@@ -68,6 +69,7 @@ function getAppleZoomTarget(): ComponentType<{ children: ReactNode }> | null {
 
 export default function PhysicalDesignDetailScreen() {
   const params = useLocalSearchParams();
+  const { user, loading } = useAuth();
   const designId = getParamAsString(params.designId);
   const initialDesign = useMemo(() => getInitialDesignFromParams(params), [params]);
   const [design, setDesign] = useState<MarketplaceDesign | null>(initialDesign);
@@ -184,6 +186,37 @@ export default function PhysicalDesignDetailScreen() {
         <Text style={styles.metaValue}>{design?.createdAt ?? "N/A"}</Text>
       </View>
 
+      <Pressable
+        onPress={() => {
+          if (loading) {
+            return;
+          }
+
+          if (!user) {
+            router.replace("/(auth)/landing");
+            return;
+          }
+
+          router.push({
+            pathname: "/physical-cart",
+            params: {
+              designId: design?.sourceDocId ?? designId,
+              collection: design?.sourceCollection ?? getParamAsString(params.collection),
+              name: design?.name ?? "",
+              description: design?.description ?? "",
+              fullImageUrl: design?.fullImageUrl ?? "",
+              thumbnailUrl: design?.thumbnailUrl ?? "",
+              miniImageUrl: design?.miniImageUrl ?? "",
+            },
+          });
+        }}
+        style={({ pressed }) => [styles.buyButton, (pressed || loading) && styles.buyButtonPressed]}
+      >
+        <Text style={styles.buyButtonText}>
+          {loading ? "Checking account..." : "Buy with Stripe Checkout"}
+        </Text>
+      </Pressable>
+
       {isHydrating ? (
         <View style={styles.loadingRow}>
           <ActivityIndicator color="#93C5FD" />
@@ -276,5 +309,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     marginTop: 12,
+  },
+  buyButton: {
+    marginTop: 18,
+    borderRadius: 12,
+    backgroundColor: "#2563EB",
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  buyButtonPressed: {
+    opacity: 0.8,
+  },
+  buyButtonText: {
+    color: "#EFF6FF",
+    fontSize: 14,
+    fontWeight: "700",
   },
 });
