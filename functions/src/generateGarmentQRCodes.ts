@@ -21,6 +21,7 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 const bucket = admin.storage().bucket(QR_BUCKET_NAME);
+const GARMENTS_COLLECTION = "Garments";
 
 const ensureGarmentQRFolderExists = async (garmentId: string) => {
   const folderPrefix = `Garments/${garmentId}/`;
@@ -39,6 +40,120 @@ const ensureGarmentQRFolderExists = async (garmentId: string) => {
   });
 };
 
+interface GarmentQrGenerationResult {
+  generatedCount: number;
+  skippedCount: number;
+  totalGarments: number;
+  uniqueGarmentsProcessed: number;
+}
+
+function normalizeGarmentIdList(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const uniqueIds = new Set<string>();
+  for (const id of value) {
+    if (typeof id !== "string") {
+      continue;
+    }
+
+    const normalized = id.trim();
+    if (normalized) {
+      uniqueIds.add(normalized);
+    }
+  }
+
+  return [...uniqueIds];
+}
+
+async function loadGarmentDocs(
+  targetGarmentIds?: string[],
+): Promise<Map<string, FirebaseFirestore.DocumentSnapshot>> {
+  const garmentDocs = new Map<string, FirebaseFirestore.DocumentSnapshot>();
+
+  if (targetGarmentIds && targetGarmentIds.length > 0) {
+    const refs = targetGarmentIds.map((garmentId) => db.collection(GARMENTS_COLLECTION).doc(garmentId));
+    const snapshots = await db.getAll(...refs);
+
+    snapshots.forEach((snapshot, index) => {
+      const garmentId = targetGarmentIds[index];
+      if (!snapshot.exists) {
+        throw new Error(`Garment does not exist for QR generation: ${garmentId}`);
+      }
+
+      garmentDocs.set(garmentId, snapshot);
+    });
+
+    return garmentDocs;
+  }
+
+  const garmentSnapshot = await db.collection(GARMENTS_COLLECTION).get();
+  for (const garmentDoc of garmentSnapshot.docs) {
+    const idFromDoc = garmentDoc.get("id");
+    const garmentId =
+      typeof idFromDoc === "string" && idFromDoc.trim().length > 0 ? idFromDoc.trim() : garmentDoc.id;
+    if (!garmentDocs.has(garmentId)) {
+      garmentDocs.set(garmentId, garmentDoc);
+    }
+  }
+
+  return garmentDocs;
+}
+
+export async function generateGarmentQRCodesForGarments(
+  targetGarmentIds?: string[],
+): Promise<GarmentQrGenerationResult> {
+  const garmentDocs = await loadGarmentDocs(targetGarmentIds);
+  const totalGarments = targetGarmentIds?.length ?? garmentDocs.size;
+
+  let generatedCount = 0;
+  let skippedCount = 0;
+
+  for (const [garmentId, garmentDoc] of garmentDocs.entries()) {
+    const qrStatus = garmentDoc.get("qrCodeStatus");
+    if (qrStatus === "GENERATED") {
+      skippedCount += 1;
+      continue;
+    }
+
+    const qrPayload = garmentId;
+    const qrPng = await QRCode.toBuffer(qrPayload, {
+      type: "png",
+      errorCorrectionLevel: "L",
+      margin: 0,
+      width: QR_IMAGE_SIZE,
+    });
+
+    await ensureGarmentQRFolderExists(garmentId);
+
+    const qrPath = `Garments/${garmentId}/${QR_FILE_NAME}`;
+    await bucket.file(qrPath).save(qrPng, {
+      contentType: "image/png",
+      resumable: false,
+      metadata: {
+        cacheControl: "no-store",
+      },
+    });
+
+    await garmentDoc.ref.set(
+      {
+        qrCodeStatus: "GENERATED",
+      },
+      { merge: true },
+    );
+
+    generatedCount += 1;
+  }
+
+  return {
+    generatedCount,
+    skippedCount,
+    totalGarments,
+    uniqueGarmentsProcessed: garmentDocs.size,
+  };
+}
+
 export const generateGarmentQRCodes = onRequest(
   { region: REGION, invoker: "private" },
   async (req, res) => {
@@ -47,73 +162,22 @@ export const generateGarmentQRCodes = onRequest(
       return;
     }
 
-    const garmentSnapshot = await db.collection("Garments").get();
-    const totalGarments = garmentSnapshot.size;
-
-    const uniqueGarmentDocs = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
-    for (const garmentDoc of garmentSnapshot.docs) {
-      const idFromDoc = garmentDoc.get("id");
-      const garmentId =
-        typeof idFromDoc === "string" && idFromDoc.trim().length > 0
-          ? idFromDoc.trim()
-          : garmentDoc.id;
-
-      if (!uniqueGarmentDocs.has(garmentId)) {
-        uniqueGarmentDocs.set(garmentId, garmentDoc);
-      }
-    }
-
-    let generatedCount = 0;
-    let skippedCount = 0;
-
-    for (const [garmentId, garmentDoc] of uniqueGarmentDocs.entries()) {
-      const qrStatus = garmentDoc.get("qrCodeStatus");
-      if (qrStatus === "GENERATED") {
-        skippedCount += 1;
-        continue;
-      }
-
-      const qrPayload = garmentId;
-      const qrPng = await QRCode.toBuffer(qrPayload, {
-        type: "png",
-        errorCorrectionLevel: "L",
-        margin: 0,
-        width: QR_IMAGE_SIZE,
-      });
-
-      await ensureGarmentQRFolderExists(garmentId);
-
-      const qrPath = `Garments/${garmentId}/${QR_FILE_NAME}`;
-      await bucket.file(qrPath).save(qrPng, {
-        contentType: "image/png",
-        resumable: false,
-        metadata: {
-          cacheControl: "no-store",
-        },
-      });
-
-      await garmentDoc.ref.set(
-        {
-          qrCodeStatus: "GENERATED",
-        },
-        { merge: true }
-      );
-
-      generatedCount += 1;
-    }
+    const targetGarmentIds = normalizeGarmentIdList((req.body as { garmentIds?: unknown })?.garmentIds);
+    const result = await generateGarmentQRCodesForGarments(targetGarmentIds);
 
     logger.info("Garment QR generation complete", {
-      generatedCount,
-      skippedCount,
-      totalGarments,
-      uniqueGarmentsProcessed: uniqueGarmentDocs.size,
+      generatedCount: result.generatedCount,
+      skippedCount: result.skippedCount,
+      totalGarments: result.totalGarments,
+      uniqueGarmentsProcessed: result.uniqueGarmentsProcessed,
+      targetMode: targetGarmentIds && targetGarmentIds.length > 0 ? "TARGETED" : "FULL_SCAN",
     });
 
     res.status(200).send(
       [
-        `# garment QR codes generated: ${generatedCount}`,
-        `# skipped due to preexisting QR codes: ${skippedCount}`,
-        `total of # garments in firestore DB: ${totalGarments}`,
+        `# garment QR codes generated: ${result.generatedCount}`,
+        `# skipped due to preexisting QR codes: ${result.skippedCount}`,
+        `total of # garments considered: ${result.totalGarments}`,
       ].join("\n")
     );
   }

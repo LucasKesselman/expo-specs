@@ -1,10 +1,28 @@
-# Firebase Functions (Non-Stripe Utilities)
+# Firebase Functions
 
-Stripe is extension-only in this project. Custom Stripe functions are intentionally removed to avoid overlap with the installed Firebase Stripe extension instance.
+This project uses the Firebase Stripe extension and also includes a custom Stripe webhook handler for garment creation.
 
 ## Implemented functions
 
 - `generateGarmentQRCodes` (HTTP): manual admin endpoint to generate garment QR PNGs.
+- `createGarment` (HTTP): Stripe webhook endpoint for `checkout.session.completed` that creates `Garments` records.
+
+## `createGarment` behavior
+
+- Verifies Stripe webhook signatures.
+- Processes only `checkout.session.completed`.
+- Reads garment fields from Stripe line item metadata:
+  - `owner` (or `ownerUid`/`uid`)
+  - `digitalDesignId` (or `digitalDesign`)
+  - `physicalDesignId` (or `physicalDesign`)
+  - `size`
+  - `color`
+  - optional: `version`
+- Writes garment docs into `Garments/{garmentId}` with:
+  - `printStatus: "NOT_PRINTED"`
+  - `qrCodeStatus: "NOT_GENERATED"`
+- Updates `Users/{owner}.ownedGarments` using `arrayUnion`.
+- Uses idempotency records in `StripeWebhookEvents/{eventId}` to prevent duplicate processing.
 
 ## `generateGarmentQRCodes` behavior
 
@@ -37,6 +55,11 @@ npm install
 npm run build
 npm run serve
 ```
+
+Set required env vars for `createGarment` in your function runtime:
+
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
 
 Call endpoint manually:
 

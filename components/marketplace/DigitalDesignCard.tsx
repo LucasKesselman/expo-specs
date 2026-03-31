@@ -23,13 +23,12 @@ export function DigitalDesignCard({ design }: DigitalDesignCardProps) {
             cachePolicy="memory-disk"
           />
           <View style={styles.overlay}>
-            <View style={styles.contentColumn}>
-              <Text style={styles.cardMeta}>Document ID: {design.documentId}</Text>
-              <Text style={styles.cardTitle} numberOfLines={2}>
-                {design.name}
-              </Text>
-              <Text style={styles.cardMeta} numberOfLines={4}>
-                {design.description}
+            <Text style={styles.cardTitle} numberOfLines={2}>
+              {design.name}
+            </Text>
+            <View style={styles.bottomDetailsColumn}>
+              <Text style={styles.cardMeta} numberOfLines={1}>
+                Document ID: {design.documentId}
               </Text>
               <Text style={styles.cardMeta}>Updated: {design.updatedAt}</Text>
             </View>
@@ -38,13 +37,12 @@ export function DigitalDesignCard({ design }: DigitalDesignCardProps) {
       ) : (
         <View style={styles.fallbackBody}>
           <Text style={styles.fallbackLabel}>No preview image</Text>
-          <View style={styles.contentColumn}>
-            <Text style={styles.cardMeta}>Document ID: {design.documentId}</Text>
-            <Text style={styles.cardTitle} numberOfLines={2}>
-              {design.name}
-            </Text>
-            <Text style={styles.cardMeta} numberOfLines={4}>
-              {design.description}
+          <Text style={styles.cardTitle} numberOfLines={2}>
+            {design.name}
+          </Text>
+          <View style={styles.bottomDetailsColumn}>
+            <Text style={styles.cardMeta} numberOfLines={1}>
+              Document ID: {design.documentId}
             </Text>
             <Text style={styles.cardMeta}>Updated: {design.updatedAt}</Text>
           </View>
@@ -73,11 +71,10 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 12,
     backgroundColor: "rgba(3, 7, 18, 0.62)",
-  },
-  contentColumn: {
-    flex: 1,
-    gap: 8,
     justifyContent: "space-between",
+  },
+  bottomDetailsColumn: {
+    gap: 8,
   },
   cardTitle: {
     color: "#F9FAFB",
@@ -94,6 +91,7 @@ const styles = StyleSheet.create({
     padding: 12,
     backgroundColor: "#030712",
     gap: 12,
+    justifyContent: "space-between",
   },
   fallbackLabel: {
     color: "#93C5FD",

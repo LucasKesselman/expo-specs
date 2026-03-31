@@ -44,6 +44,17 @@ export default function RootLayoutIOS() {
             }}
           />
           <Stack.Screen
+            name="physical-design/[designId]"
+            options={{
+              headerShown: true,
+              title: "Physical Design",
+              headerStyle: { backgroundColor: "#111827" },
+              headerTintColor: "#E5E7EB",
+              headerTitleStyle: { fontWeight: "700" },
+              presentation: "card",
+            }}
+          />
+          <Stack.Screen
             name="create-digital-design"
             options={{
               headerShown: true,
