@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ComponentType, type Reac
 import { Link } from "expo-router";
 import { Image as ExpoImage } from "expo-image";
 import {
+  ActivityIndicator,
   Animated,
   Easing,
   FlatList,
@@ -228,6 +229,13 @@ export default function DigitalMarketplaceTabScreen() {
           listBottomInset != null ? { paddingBottom: listBottomInset } : null,
         ]}
         columnWrapperStyle={designs.length > 0 ? styles.columnWrapper : undefined}
+        ListHeaderComponent={
+          isRefreshing ? (
+            <View style={styles.refreshIndicatorContainer}>
+              <ActivityIndicator size="small" color="#93C5FD" />
+            </View>
+          ) : null
+        }
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -235,6 +243,8 @@ export default function DigitalMarketplaceTabScreen() {
               void loadDigitalDesigns(true);
             }}
             tintColor="#93C5FD"
+            colors={["#93C5FD"]}
+            progressBackgroundColor="#111827"
           />
         }
         ListEmptyComponent={
@@ -299,6 +309,11 @@ const styles = StyleSheet.create({
   cardPressable: {
     borderRadius: 12,
   } satisfies ViewStyle,
+  refreshIndicatorContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingBottom: 8,
+  },
   emptyListContentContainer: {
     flexGrow: 1,
     alignItems: "center",

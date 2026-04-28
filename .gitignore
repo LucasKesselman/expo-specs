@@ -36,6 +36,7 @@ yarn-error.*
 !.env.example
 functions/.env.local
 functions/.runtimeconfig.json
+zappar-artifacts/
 
 # Firebase config (contains your project credentials)
 lib/firebase.config.ts

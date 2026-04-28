@@ -1,7 +1,11 @@
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 
+import { ZapparCameraEntry } from "../../components/camera/ZapparCameraEntry";
+
 export default function CameraTabScreen() {
+  const showNativeZapparEntry = Platform.OS === "ios";
+
   return (
     <View style={cameraTabScreenStyles.placeholderScreenContainer}>
       <Image
@@ -9,10 +13,18 @@ export default function CameraTabScreen() {
         style={cameraTabScreenStyles.figure}
         contentFit="contain"
       />
-      <Text style={cameraTabScreenStyles.centeredPlaceholderText}>AR Camera Coming Soon</Text>
-      <Text style={cameraTabScreenStyles.subText}>
-        We are polishing the next interactive camera experience for Artie.
-      </Text>
+      {showNativeZapparEntry ? (
+        <ZapparCameraEntry />
+      ) : (
+        <>
+          <Text style={cameraTabScreenStyles.centeredPlaceholderText}>
+            AR Camera Coming Soon
+          </Text>
+          <Text style={cameraTabScreenStyles.subText}>
+            We are polishing the next interactive camera experience for Artie.
+          </Text>
+        </>
+      )}
     </View>
   );
 }
@@ -28,7 +40,7 @@ const cameraTabScreenStyles = StyleSheet.create({
   figure: {
     width: 210,
     height: 260,
-    marginBottom: 14,
+    marginBottom: 10,
     opacity: 0.95,
   },
   centeredPlaceholderText: {

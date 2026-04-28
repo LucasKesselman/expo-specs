@@ -35,6 +35,17 @@ export default function RootLayout() {
             }}
           />
           <Stack.Screen
+            name="garment/[garmentId]"
+            options={{
+              headerShown: true,
+              title: "Garment",
+              headerStyle: { backgroundColor: "#111827" },
+              headerTintColor: "#E5E7EB",
+              headerTitleStyle: { fontWeight: "700" },
+              presentation: "card",
+            }}
+          />
+          <Stack.Screen
             name="physical-cart"
             options={{
               headerShown: true,

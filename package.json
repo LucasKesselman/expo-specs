@@ -6,7 +6,9 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "prepare:zappar:ios": "node ./scripts/prepare-zappar-ios.js",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@expo/ui": "0.2.0-beta.9",

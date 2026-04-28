@@ -12,6 +12,9 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses the camera for AR experiences.",
+        "NSMicrophoneUsageDescription": "This app can record audio while capturing AR moments.",
+        "NSPhotoLibraryUsageDescription": "This app can access your photo library for AR captures.",
+        "NSPhotoLibraryAddUsageDescription": "This app can save AR photos and videos to your library.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
