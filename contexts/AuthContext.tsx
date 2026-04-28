@@ -6,6 +6,7 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
+  updateProfile,
 } from "firebase/auth";
 
 import { auth } from "../lib/firebase";
@@ -14,7 +15,7 @@ interface AuthContextValue {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, displayName: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -40,8 +41,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn: async (email: string, password: string) => {
         await signInWithEmailAndPassword(auth, email.trim(), password);
       },
-      signUp: async (email: string, password: string) => {
-        await createUserWithEmailAndPassword(auth, email.trim(), password);
+      signUp: async (email: string, password: string, displayName: string) => {
+        const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        const normalizedDisplayName = displayName.trim();
+
+        if (normalizedDisplayName) {
+          await updateProfile(credential.user, { displayName: normalizedDisplayName });
+        }
       },
       signOut: async () => {
         await firebaseSignOut(auth);

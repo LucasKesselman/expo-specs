@@ -1,6 +1,7 @@
 import { Image } from "expo-image";
 import { StyleSheet, Text, View } from "react-native";
 
+import { BatchAvailability } from "./BatchAvailability";
 import type { MarketplaceDesign } from "../../types/marketplaceDesign";
 
 type PhysicalDesignCardProps = {
@@ -30,9 +31,7 @@ export function PhysicalDesignCard({ design }: PhysicalDesignCardProps) {
               <View style={styles.priceBadge}>
                 <Text style={styles.priceBadgeText}>{design.price}</Text>
               </View>
-              <Text style={styles.cardMeta} numberOfLines={1}>
-                Document ID: {design.documentId}
-              </Text>
+              <BatchAvailability />
               <Text style={styles.cardMeta}>Created: {design.createdAt}</Text>
             </View>
           </View>
@@ -46,9 +45,7 @@ export function PhysicalDesignCard({ design }: PhysicalDesignCardProps) {
             <View style={styles.priceBadge}>
               <Text style={styles.priceBadgeText}>{design.price}</Text>
             </View>
-            <Text style={styles.cardMeta} numberOfLines={1}>
-              Document ID: {design.documentId}
-            </Text>
+            <BatchAvailability />
             <Text style={styles.cardMeta}>Created: {design.createdAt}</Text>
           </View>
         </View>

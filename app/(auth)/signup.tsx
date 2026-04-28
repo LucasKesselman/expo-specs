@@ -7,6 +7,7 @@ import { useAuth } from "../../contexts/AuthContext";
 export default function SignupScreen() {
   const router = useRouter();
   const { signUp } = useAuth();
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -15,6 +16,11 @@ export default function SignupScreen() {
 
   const handleSignup = async () => {
     if (submitting) return;
+    if (!username.trim()) {
+      setError("Please enter a username.");
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
       return;
@@ -24,7 +30,7 @@ export default function SignupScreen() {
     setSubmitting(true);
 
     try {
-      await signUp(email, password);
+      await signUp(email, password, username);
       router.replace("/(tabs)/account");
     } catch (signupError) {
       const message = signupError instanceof Error ? signupError.message : "Failed to create account.";
@@ -43,6 +49,16 @@ export default function SignupScreen() {
       />
       <Text style={styles.title}>Create your account</Text>
 
+      <TextInput
+        style={styles.input}
+        value={username}
+        onChangeText={setUsername}
+        autoCapitalize="words"
+        autoCorrect={false}
+        placeholder="Username"
+        placeholderTextColor="#6B7280"
+        editable={!submitting}
+      />
       <TextInput
         style={styles.input}
         value={email}
@@ -82,21 +98,15 @@ export default function SignupScreen() {
       <Pressable
         style={({ pressed }) => [
           styles.submitButton,
-          (submitting || !email || !password || !confirmPassword) && styles.submitButtonDisabled,
+          (submitting || !username.trim() || !email || !password || !confirmPassword) &&
+            styles.submitButtonDisabled,
           pressed && styles.buttonPressed,
         ]}
         onPress={handleSignup}
-        disabled={submitting || !email || !password || !confirmPassword}
+        disabled={submitting || !username.trim() || !email || !password || !confirmPassword}
       >
         {submitting ? (
-          <View style={styles.loadingContent}>
-            <Image
-              source={require("../../assets/artie-assets/UIStuff/ArtieSymbolBlack.png")}
-              style={styles.loadingIcon}
-              resizeMode="contain"
-            />
-            <ActivityIndicator color="#111827" size="small" />
-          </View>
+          <ActivityIndicator color="#111827" size="small" />
         ) : (
           <Text style={styles.submitButtonText}>Sign Up</Text>
         )}
@@ -155,15 +165,6 @@ const styles = StyleSheet.create({
     color: "#111827",
     fontSize: 16,
     fontWeight: "800",
-  },
-  loadingContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  loadingIcon: {
-    width: 16,
-    height: 16,
   },
   buttonPressed: {
     opacity: 0.75,

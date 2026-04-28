@@ -1,34 +1,11 @@
 import { Stack } from "expo-router";
-import type { ComponentType, ReactNode } from "react";
-import { Text, View } from "react-native";
 import { AuthProvider } from "../contexts/AuthContext";
-
-// Development-build-first path:
-// This file is intentionally iOS-native and expects an EAS development build.
-function IOSHost({ children }: { children: ReactNode }) {
-  try {
-    const swiftUI = require("@expo/ui/swift-ui") as {
-      Host: ComponentType<{ children?: ReactNode }>;
-    };
-    const Host = swiftUI.Host;
-    return <Host>{children}</Host>;
-  } catch {
-    // iOS native Host is expected in development builds.
-    // If this renders, the runtime likely does not support ExpoUI Host.
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
-        <Text style={{ textAlign: "center" }}>
-          iOS native Host is unavailable. Use an EAS development build for SDK 55 native UI testing.
-        </Text>
-      </View>
-    );
-  }
-}
+import { SelectedDigitalDesignProvider } from "../contexts/SelectedDigitalDesignContext";
 
 export default function RootLayoutIOS() {
   return (
-    <IOSHost>
-      <AuthProvider>
+    <AuthProvider>
+      <SelectedDigitalDesignProvider>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="(auth)" />
@@ -88,7 +65,7 @@ export default function RootLayoutIOS() {
             }}
           />
         </Stack>
-      </AuthProvider>
-    </IOSHost>
+      </SelectedDigitalDesignProvider>
+    </AuthProvider>
   );
 }

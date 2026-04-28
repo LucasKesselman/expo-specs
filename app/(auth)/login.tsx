@@ -72,14 +72,7 @@ export default function LoginScreen() {
         disabled={submitting || !email || !password}
       >
         {submitting ? (
-          <View style={styles.loadingContent}>
-            <Image
-              source={require("../../assets/artie-assets/UIStuff/ArtieSymbolBlack.png")}
-              style={styles.loadingIcon}
-              resizeMode="contain"
-            />
-            <ActivityIndicator color="#111827" size="small" />
-          </View>
+          <ActivityIndicator color="#111827" size="small" />
         ) : (
           <Text style={styles.submitButtonText}>Log In</Text>
         )}
@@ -138,15 +131,6 @@ const styles = StyleSheet.create({
     color: "#111827",
     fontSize: 16,
     fontWeight: "800",
-  },
-  loadingContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  loadingIcon: {
-    width: 16,
-    height: 16,
   },
   buttonPressed: {
     opacity: 0.75,

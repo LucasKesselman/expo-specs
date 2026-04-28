@@ -86,21 +86,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="account"
-        options={{
-          title: "Account",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" color={color} size={size} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="camera"
         options={{
           title: "Camera",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="camera" color={color} size={size} />
+          tabBarIcon: ({ size }) => (
+            <Ionicons name="camera" color="#EF4444" size={size} />
           ),
+          tabBarLabel: () => <Text style={{ color: "#EF4444" }}>Camera</Text>,
         }}
       />
       <Tabs.Screen
@@ -109,6 +101,15 @@ export default function TabsLayout() {
           title: "Wardrobe",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="shirt-outline" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="account"
+        options={{
+          title: "Account",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" color={color} size={size} />
           ),
         }}
       />

@@ -1,34 +1,52 @@
-import {
-  Icon,
-  Label,
-  NativeTabs,
-} from "expo-router/unstable-native-tabs";
-import type { ComponentType, ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Tabs } from "expo-router";
+import { BottomTabBar, type BottomTabBarProps } from "@react-navigation/bottom-tabs";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { Image } from "expo-image";
+import { Platform, StyleSheet, Text, View } from "react-native";
 
-// Development-build-first path:
-// iOS uses native tabs (SDK 55) when running in a native development build.
-const tabsTintColor = "yellow";
-const nativeTabsWithBottomAccessory = NativeTabs as typeof NativeTabs & {
-  BottomAccessory?: ComponentType<{ children?: ReactNode }>;
-};
+import { useSelectedDigitalDesign } from "../../contexts/SelectedDigitalDesignContext";
 
 function SelectedDigitalDesignAccessory() {
+  const { selectedDesign, isLoaded } = useSelectedDigitalDesign();
+
+  if (!isLoaded || !selectedDesign) {
+    return null;
+  }
+
   return (
     <View style={selectedDigitalDesignAccessoryStyles.container}>
       <View style={selectedDigitalDesignAccessoryStyles.leftContent}>
-        <Text style={selectedDigitalDesignAccessoryStyles.titleText}>
-          Currently selected digital design:
-        </Text>
-        <Text style={selectedDigitalDesignAccessoryStyles.subtitleText}>
-          placeholder design name
-        </Text>
+        <Text style={selectedDigitalDesignAccessoryStyles.titleText}>Currently selected digital design:</Text>
+        <Text style={selectedDigitalDesignAccessoryStyles.subtitleText}>{selectedDesign.name}</Text>
       </View>
 
-      <View style={selectedDigitalDesignAccessoryStyles.imagePlaceholder}>
-        <Text style={selectedDigitalDesignAccessoryStyles.imagePlaceholderText}>
-          image
-        </Text>
+      {selectedDesign.miniImageUrl ? (
+        <Image
+          source={{ uri: selectedDesign.miniImageUrl }}
+          style={selectedDigitalDesignAccessoryStyles.previewImage}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+        />
+      ) : (
+        <View style={selectedDigitalDesignAccessoryStyles.imagePlaceholder}>
+          <Text style={selectedDigitalDesignAccessoryStyles.imagePlaceholderText}>image not found</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+function FallbackTabBarWithSelectedDigitalDesignAccessory(props: BottomTabBarProps) {
+  if (Platform.OS !== "web") {
+    return <BottomTabBar {...props} />;
+  }
+
+  return (
+    <View style={fallbackTabBarStyles.container}>
+      <BottomTabBar {...props} />
+
+      <View pointerEvents="box-none" style={fallbackTabBarStyles.accessoryOverlay}>
+        <SelectedDigitalDesignAccessory />
       </View>
     </View>
   );
@@ -36,50 +54,70 @@ function SelectedDigitalDesignAccessory() {
 
 export default function TabsLayoutIOS() {
   return (
-    <NativeTabs
-      backgroundColor="#111827"
-      disableTransparentOnScrollEdge={true}
-      tintColor={tabsTintColor}
-      minimizeBehavior="onScrollDown"
+    <Tabs
+      initialRouteName="camera"
+      screenOptions={{
+        headerShown: false,
+        sceneStyle: { backgroundColor: "#111827" },
+        tabBarStyle: { backgroundColor: "#111827" },
+      }}
+      tabBar={(props) => (
+        <FallbackTabBarWithSelectedDigitalDesignAccessory {...props} />
+      )}
     >
-      <NativeTabs.Trigger name="digital-marketplace">
-        <Label>Digital Marketplace</Label>
-        <Icon sf="photo.fill" />
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="physical-marketplace">
-        <Label>Physical Marketplace</Label>
-        <Icon sf="tshirt.fill" />
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="account">
-        <Label>Account</Label>
-        <Icon sf="person.fill" />
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="camera" role="search">
-        <Label>Camera</Label>
-        <Icon sf={{ default: "camera.fill", selected: "camera.fill" }} />
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="wardrobe">
-        <Label>Wardrobe</Label>
-        <Icon sf="tshirt.fill" />
-      </NativeTabs.Trigger>
-
-      {nativeTabsWithBottomAccessory.BottomAccessory ? (
-        <nativeTabsWithBottomAccessory.BottomAccessory>
-          <SelectedDigitalDesignAccessory />
-        </nativeTabsWithBottomAccessory.BottomAccessory>
-      ) : null}
-    </NativeTabs>
+      <Tabs.Screen
+        name="digital-marketplace"
+        options={{
+          title: "Digital Marketplace",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="image" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="physical-marketplace"
+        options={{
+          title: "Physical Marketplace",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="shirt" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="camera"
+        options={{
+          title: "Camera",
+          tabBarIcon: ({ size }) => (
+            <Ionicons name="camera" color="#EF4444" size={size} />
+          ),
+          tabBarLabel: () => <Text style={{ color: "#EF4444" }}>Camera</Text>,
+        }}
+      />
+      <Tabs.Screen
+        name="wardrobe"
+        options={{
+          title: "Wardrobe",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="shirt-outline" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="account"
+        options={{
+          title: "Account",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" color={color} size={size} />
+          ),
+        }}
+      />
+    </Tabs>
   );
 }
 
 const selectedDigitalDesignAccessoryStyles = StyleSheet.create({
   container: {
-    marginHorizontal: 12,
-    marginBottom: 8,
+    marginHorizontal: 16,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 14,
@@ -114,9 +152,30 @@ const selectedDigitalDesignAccessoryStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  previewImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+    backgroundColor: "#374151",
+  },
   imagePlaceholderText: {
     color: "#D1D5DB",
     fontSize: 11,
     fontWeight: "600",
+    textAlign: "center",
+    paddingHorizontal: 6,
+  },
+});
+
+const fallbackTabBarStyles = StyleSheet.create({
+  container: {
+    position: "relative",
+  },
+  accessoryOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 64,
+    pointerEvents: "box-none",
   },
 });

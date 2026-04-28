@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Link } from "expo-router";
 import { Image as ExpoImage } from "expo-image";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import {
   Animated,
   Easing,
@@ -23,6 +22,7 @@ import { firestore } from "../../lib/firebase";
 import { mapFirestoreDocToMarketplaceDesign, type MarketplaceDesign } from "../../types/marketplaceDesign";
 
 const DIGITAL_DESIGNS_COLLECTION_CANDIDATES = ["DigitalDesigns"] as const;
+const FALLBACK_TAB_BAR_HEIGHT = 56;
 const FALLBACK_ACCESSORY_HEIGHT = 70;
 const FALLBACK_ACCESSORY_SPACING = 16;
 type AppleZoomLink = typeof Link & {
@@ -69,17 +69,17 @@ function getSortTimestamp(doc: QueryDocumentSnapshot<DocumentData>): number {
 }
 
 export default function DigitalMarketplaceTabScreen() {
-  const tabBarHeight = useBottomTabBarHeight();
   const insets = useSafeAreaInsets();
   const [designs, setDesigns] = useState<MarketplaceDesign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const loadingSpin = useRef(new Animated.Value(0)).current;
+  const listTopInset = Platform.OS === "ios" ? insets.top + 16 : 16;
   const listBottomInset =
     Platform.OS === "ios"
       ? undefined
-      : tabBarHeight + FALLBACK_ACCESSORY_HEIGHT + FALLBACK_ACCESSORY_SPACING + insets.bottom;
+      : FALLBACK_TAB_BAR_HEIGHT + FALLBACK_ACCESSORY_HEIGHT + FALLBACK_ACCESSORY_SPACING + insets.bottom;
 
   const loadDigitalDesigns = useCallback(async (refresh = false) => {
     if (refresh) {
@@ -184,6 +184,7 @@ export default function DigitalMarketplaceTabScreen() {
       {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
 
       <FlatList
+        style={styles.list}
         data={designs}
         numColumns={2}
         keyExtractor={(item) => `${item.sourceCollection}:${item.sourceDocId}`}
@@ -223,6 +224,7 @@ export default function DigitalMarketplaceTabScreen() {
         removeClippedSubviews={true}
         contentContainerStyle={[
           designs.length === 0 ? styles.emptyListContentContainer : styles.listContentContainer,
+          { paddingTop: listTopInset },
           listBottomInset != null ? { paddingBottom: listBottomInset } : null,
         ]}
         columnWrapperStyle={designs.length > 0 ? styles.columnWrapper : undefined}
@@ -280,6 +282,10 @@ const styles = StyleSheet.create({
   listContentContainer: {
     paddingHorizontal: 10,
     paddingVertical: 16,
+  },
+  list: {
+    flex: 1,
+    width: "100%",
   },
   columnWrapper: {
     justifyContent: "space-between",

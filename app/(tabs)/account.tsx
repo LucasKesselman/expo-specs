@@ -1,17 +1,28 @@
-import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { Pressable, ScrollView, StyleSheet, Text, View, Platform } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { collection, doc, getDoc } from "firebase/firestore";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Linking,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../contexts/AuthContext";
 import { firestore } from "../../lib/firebase";
 
+const FALLBACK_TAB_BAR_HEIGHT = 56;
 const FALLBACK_ACCESSORY_HEIGHT = 70;
 const FALLBACK_ACCESSORY_SPACING = 16;
 const USERS_COLLECTION = "Users";
 const GARMENTS_COLLECTION = "Garments";
+const SUPPORT_EMAIL = "artie@artie.com";
+const PRIVACY_URL = "https://www.yourapp.com/privacy";
+const TERMS_URL = "https://www.yourapp.com/terms";
 
 type GarmentCardData = {
   id: string;
@@ -35,7 +46,10 @@ function normalizeGarmentId(value: unknown): string | null {
       return ((value as { id: string }).id || "").trim() || null;
     }
 
-    if ("path" in value && typeof (value as { path?: unknown }).path === "string") {
+    if (
+      "path" in value &&
+      typeof (value as { path?: unknown }).path === "string"
+    ) {
       const path = (value as { path: string }).path.trim();
       if (!path) {
         return null;
@@ -67,20 +81,26 @@ function normalizeLinkedDocumentId(value: unknown): string | null {
 export default function AccountTabScreen() {
   const router = useRouter();
   const { user, signOut } = useAuth();
-  const tabBarHeight = useBottomTabBarHeight();
   const insets = useSafeAreaInsets();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isUserDetailsExpanded, setIsUserDetailsExpanded] = useState(false);
   const [isLoadingGarments, setIsLoadingGarments] = useState(false);
   const [ownedGarments, setOwnedGarments] = useState<GarmentCardData[]>([]);
-  const [garmentsErrorMessage, setGarmentsErrorMessage] = useState<string | null>(null);
+  const [garmentsErrorMessage, setGarmentsErrorMessage] = useState<
+    string | null
+  >(null);
   const scrollBottomInset = useMemo(() => {
     if (Platform.OS === "ios") {
       return 40;
     }
 
-    return tabBarHeight + FALLBACK_ACCESSORY_HEIGHT + FALLBACK_ACCESSORY_SPACING + insets.bottom;
-  }, [insets.bottom, tabBarHeight]);
+    return (
+      FALLBACK_TAB_BAR_HEIGHT +
+      FALLBACK_ACCESSORY_HEIGHT +
+      FALLBACK_ACCESSORY_SPACING +
+      insets.bottom
+    );
+  }, [insets.bottom]);
   const userDetailsJson = useMemo(() => {
     if (!user) {
       return JSON.stringify(
@@ -140,9 +160,15 @@ export default function AccountTabScreen() {
         }
 
         const userData = userSnapshot.data();
-        const rawOwnedGarments = Array.isArray(userData.ownedGarments) ? userData.ownedGarments : [];
+        const rawOwnedGarments = Array.isArray(userData.ownedGarments)
+          ? userData.ownedGarments
+          : [];
         const ownedGarmentIds = Array.from(
-          new Set(rawOwnedGarments.map(normalizeGarmentId).filter((id): id is string => Boolean(id))),
+          new Set(
+            rawOwnedGarments
+              .map(normalizeGarmentId)
+              .filter((id): id is string => Boolean(id)),
+          ),
         );
 
         if (!ownedGarmentIds.length) {
@@ -155,7 +181,9 @@ export default function AccountTabScreen() {
         const garmentSnapshots = await Promise.all(
           ownedGarmentIds.map(async (garmentId) => {
             try {
-              const snapshot = await getDoc(doc(collection(firestore, GARMENTS_COLLECTION), garmentId));
+              const snapshot = await getDoc(
+                doc(collection(firestore, GARMENTS_COLLECTION), garmentId),
+              );
               return { garmentId, snapshot };
             } catch {
               return { garmentId, snapshot: null };
@@ -179,12 +207,28 @@ export default function AccountTabScreen() {
           const garmentData = snapshot.data();
           return {
             id: garmentId,
-            size: typeof garmentData.size === "string" ? garmentData.size : "Unknown",
-            color: typeof garmentData.color === "string" ? garmentData.color : "Unknown",
-            printStatus: typeof garmentData.printStatus === "string" ? garmentData.printStatus : "Unknown",
-            qrCodeStatus: typeof garmentData.qrCodeStatus === "string" ? garmentData.qrCodeStatus : "Unknown",
-            physicalDesignId: normalizeLinkedDocumentId(garmentData.physicalDesign),
-            digitalDesignId: normalizeLinkedDocumentId(garmentData.digitalDesign),
+            size:
+              typeof garmentData.size === "string"
+                ? garmentData.size
+                : "Unknown",
+            color:
+              typeof garmentData.color === "string"
+                ? garmentData.color
+                : "Unknown",
+            printStatus:
+              typeof garmentData.printStatus === "string"
+                ? garmentData.printStatus
+                : "Unknown",
+            qrCodeStatus:
+              typeof garmentData.qrCodeStatus === "string"
+                ? garmentData.qrCodeStatus
+                : "Unknown",
+            physicalDesignId: normalizeLinkedDocumentId(
+              garmentData.physicalDesign,
+            ),
+            digitalDesignId: normalizeLinkedDocumentId(
+              garmentData.digitalDesign,
+            ),
           };
         });
 
@@ -239,17 +283,39 @@ export default function AccountTabScreen() {
     }
   };
 
+  const handleOpenSupportEmail = () => {
+    void Linking.openURL(`mailto:${SUPPORT_EMAIL}`);
+  };
+
+  const handleOpenPrivacy = () => {
+    void Linking.openURL(PRIVACY_URL);
+  };
+
+  const handleOpenTerms = () => {
+    void Linking.openURL(TERMS_URL);
+  };
+
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={[styles.contentContainer, { paddingBottom: scrollBottomInset }]}
+      contentContainerStyle={[
+        styles.contentContainer,
+        { paddingBottom: scrollBottomInset },
+      ]}
     >
       <Text style={styles.heading}>Account</Text>
 
       {user ? (
         <View style={styles.sessionCard}>
           <Text style={styles.sessionLabel}>Signed in as</Text>
-          <Text style={styles.sessionValue}>{user.email ?? user.uid}</Text>
+          <View style={styles.sessionDetails}>
+            <Text style={styles.sessionDetailText}>
+              Username: {user.displayName ?? "Not set"}
+            </Text>
+            <Text style={styles.sessionDetailText}>
+              Email: {user.email ?? "Not available"}
+            </Text>
+          </View>
           <Pressable
             style={({ pressed }) => [
               styles.secondaryButton,
@@ -267,7 +333,10 @@ export default function AccountTabScreen() {
         <View style={styles.sessionCard}>
           <Text style={styles.sessionLabel}>You are browsing as a guest.</Text>
           <Pressable
-            style={({ pressed }) => [styles.primaryButton, pressed && styles.actionCardPressed]}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              pressed && styles.actionCardPressed,
+            ]}
             onPress={() => router.push("/(auth)/landing")}
           >
             <Text style={styles.primaryButtonText}>Log In / Sign Up</Text>
@@ -277,7 +346,9 @@ export default function AccountTabScreen() {
 
       <Text style={styles.sectionHeader}>My Garments</Text>
       {!user ? (
-        <Text style={styles.myGarmentsMessage}>Sign in to view your owned garments.</Text>
+        <Text style={styles.myGarmentsMessage}>
+          Sign in to view your owned garments.
+        </Text>
       ) : isLoadingGarments ? (
         <View style={styles.myGarmentsStateCard}>
           <Text style={styles.myGarmentsMessage}>Loading your garments...</Text>
@@ -288,7 +359,9 @@ export default function AccountTabScreen() {
         </View>
       ) : ownedGarments.length === 0 ? (
         <View style={styles.myGarmentsStateCard}>
-          <Text style={styles.myGarmentsMessage}>No garments found on your account yet.</Text>
+          <Text style={styles.myGarmentsMessage}>
+            No garments found on your account yet.
+          </Text>
         </View>
       ) : (
         <ScrollView
@@ -314,10 +387,14 @@ export default function AccountTabScreen() {
                 <Text style={styles.garmentCardValue}>{garment.color}</Text>
 
                 <Text style={styles.garmentCardLabel}>Print Status</Text>
-                <Text style={styles.garmentCardValue}>{garment.printStatus}</Text>
+                <Text style={styles.garmentCardValue}>
+                  {garment.printStatus}
+                </Text>
 
                 <Text style={styles.garmentCardLabel}>QR Status</Text>
-                <Text style={styles.garmentCardValue}>{garment.qrCodeStatus}</Text>
+                <Text style={styles.garmentCardValue}>
+                  {garment.qrCodeStatus}
+                </Text>
 
                 {garment.physicalDesignId ? (
                   <>
@@ -367,7 +444,10 @@ export default function AccountTabScreen() {
       {user ? (
         <>
           <Pressable
-            style={({ pressed }) => [styles.actionCard, pressed && styles.actionCardPressed]}
+            style={({ pressed }) => [
+              styles.actionCard,
+              pressed && styles.actionCardPressed,
+            ]}
             onPress={handleCreateDigitalDesign}
           >
             <View style={styles.actionCardIcon}>
@@ -383,7 +463,11 @@ export default function AccountTabScreen() {
           </Pressable>
 
           <Pressable
-            style={({ pressed }) => [styles.actionCard, styles.actionCardSpacing, pressed && styles.actionCardPressed]}
+            style={({ pressed }) => [
+              styles.actionCard,
+              styles.actionCardSpacing,
+              pressed && styles.actionCardPressed,
+            ]}
             onPress={handleCreatePhysicalDesign}
           >
             <View style={styles.actionCardIcon}>
@@ -403,6 +487,48 @@ export default function AccountTabScreen() {
           Sign in to save and create your own designs!
         </Text>
       )}
+
+      <View style={styles.footer}>
+        <Text style={styles.footerTitle}>Contact & Support</Text>
+        <Pressable
+          style={({ pressed }) => [
+            styles.footerLinkRow,
+            pressed && styles.actionCardPressed,
+          ]}
+          onPress={handleOpenSupportEmail}
+        >
+          <Ionicons name="mail-outline" size={16} color="#93C5FD" />
+          <Text style={styles.footerLinkText}>{SUPPORT_EMAIL}</Text>
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [
+            styles.footerLinkRow,
+            pressed && styles.actionCardPressed,
+          ]}
+          onPress={handleOpenPrivacy}
+        >
+          <Ionicons name="shield-checkmark-outline" size={16} color="#93C5FD" />
+          <Text style={styles.footerLinkText}>Privacy Policy</Text>
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [
+            styles.footerLinkRow,
+            pressed && styles.actionCardPressed,
+          ]}
+          onPress={handleOpenTerms}
+        >
+          <Ionicons name="document-text-outline" size={16} color="#93C5FD" />
+          <Text style={styles.footerLinkText}>Terms of Service</Text>
+        </Pressable>
+        <Text style={styles.footerDisclaimer}>
+          For support, contact us at {SUPPORT_EMAIL}. We respond in 1-2 business
+          days.
+        </Text>
+        <Text style={styles.footerDisclaimer}>
+          This app is provided "as is". Availability and features may vary by
+          region and device.
+        </Text>
+      </View>
     </ScrollView>
   );
 }
@@ -436,12 +562,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
-  sessionValue: {
+  sessionDetails: {
+    marginTop: 6,
+    marginBottom: 12,
+    rowGap: 4,
+  },
+  sessionDetailText: {
     color: "#F9FAFB",
     fontSize: 15,
     fontWeight: "700",
-    marginTop: 4,
-    marginBottom: 12,
   },
   primaryButton: {
     marginTop: 10,
@@ -614,5 +743,39 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     lineHeight: 20,
     marginBottom: 4,
+  },
+  footer: {
+    marginTop: 20,
+    marginBottom: 8,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#374151",
+    backgroundColor: "#0B1220",
+    gap: 8,
+  },
+  footerTitle: {
+    color: "#D1D5DB",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  footerLinkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 4,
+  },
+  footerLinkText: {
+    color: "#BFDBFE",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  footerDisclaimer: {
+    color: "#9CA3AF",
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 2,
   },
 });
