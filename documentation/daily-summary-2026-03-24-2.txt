@@ -68,7 +68,7 @@ Medium priority
 - Reintroduce only the minimum shared state/hooks needed for these screens.
 
 6) Define camera implementation path
-- Decide between Zappar re-integration, native camera-first, or hybrid AR strategy.
+- Decide between native camera-first or hybrid AR strategy.
 - Then replace `camera` placeholder with first working slice.
 
 Repository hygiene and risk cleanup

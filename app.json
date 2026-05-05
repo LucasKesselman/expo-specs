@@ -19,6 +19,7 @@
       }
     },
     "android": {
+      "package": "com.lucaskesselman.expospecs",
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
@@ -26,7 +27,22 @@
       "output": "static"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "@reactvision/react-viro",
+        {
+          "android": {
+            "xRMode": "AR"
+          },
+          "ios": {
+            "cameraUsagePermission": "This app uses the camera for AR experiences.",
+            "microphoneUsagePermission": "This app can record audio while capturing AR moments.",
+            "photosPermission": "This app can access your photo library for AR captures.",
+            "savephotosPermission": "This app can save AR photos and videos to your library."
+          },
+          "provider": "reactvision"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

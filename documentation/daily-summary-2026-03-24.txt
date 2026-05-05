@@ -64,7 +64,7 @@ High priority (tomorrow first)
 Medium priority
 4) Decide and implement camera tab direction
 - Current `camera.tsx` is intentionally placeholder.
-- Define whether this becomes native camera capture, Zappar integration, or another AR path before building UI/API integration.
+- Define whether this becomes native camera capture or another AR path before building UI/API integration.
 
 5) Build real content for marketplace and account tabs
 - Replace placeholders with initial data model wiring and minimal MVP UI.
