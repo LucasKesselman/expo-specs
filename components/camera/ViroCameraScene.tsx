@@ -1,6 +1,43 @@
-import { Platform, StyleSheet, Text, UIManager, View } from "react-native";
+import { useCallback, useRef, useState } from "react";
+import { Image, Platform, Pressable, StyleSheet, Text, UIManager, View } from "react-native";
+
+const ARTIE_FULL_D_IMAGE = require("../../assets/artie-assets/UIStuff/artieFullD.png");
+const ARTIE_TARGET_HEIGHT_METERS = 0.1524;
+const ARTIE_TARGET_ID = "artieFullDTarget";
+const ARTIE_IMAGE_ASSET = Image.resolveAssetSource(ARTIE_FULL_D_IMAGE);
+const ARTIE_TARGET_WIDTH_METERS =
+  ARTIE_IMAGE_ASSET.width && ARTIE_IMAGE_ASSET.height
+    ? ARTIE_TARGET_HEIGHT_METERS * (ARTIE_IMAGE_ASSET.width / ARTIE_IMAGE_ASSET.height)
+    : ARTIE_TARGET_HEIGHT_METERS;
+
+let hasRegisteredMarkerAssets = false;
+
+type CaptureResult = {
+  success?: boolean;
+  url?: string;
+  errorCode?: number;
+};
+
+function buildCaptureName(prefix: string) {
+  return `${prefix}-${Date.now()}`;
+}
+
+function getErrorMessage(prefix: string, errorCode?: number) {
+  return errorCode !== undefined ? `${prefix} (code ${errorCode}).` : prefix;
+}
 
 export function ViroCameraScene() {
+  const arNavigatorRef = useRef<any>(null);
+  const suppressNextPressRef = useRef(false);
+  const [isBusy, setIsBusy] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [statusText, setStatusText] = useState("Tap for photo. Hold for video.");
+
+  const getNavigatorHandle = useCallback(() => {
+    const ref = arNavigatorRef.current;
+    return ref?.sceneNavigator ?? ref;
+  }, []);
+
   if (Platform.OS !== "ios" && Platform.OS !== "android") {
     return (
       <View style={styles.unsupportedContainer}>
@@ -29,6 +66,10 @@ export function ViroCameraScene() {
 
   let ViroARScene: any;
   let ViroARSceneNavigator: any;
+  let ViroARTrackingTargets: any;
+  let ViroARImageMarker: any;
+  let ViroBox: any;
+  let ViroMaterials: any;
 
   try {
     // Import component modules directly to avoid root entry side effects
@@ -36,6 +77,13 @@ export function ViroCameraScene() {
     ViroARScene = require("@reactvision/react-viro/dist/components/AR/ViroARScene").ViroARScene;
     ViroARSceneNavigator =
       require("@reactvision/react-viro/dist/components/AR/ViroARSceneNavigator").ViroARSceneNavigator;
+    ViroARTrackingTargets =
+      require("@reactvision/react-viro/dist/components/AR/ViroARTrackingTargets").ViroARTrackingTargets;
+    ViroARImageMarker =
+      require("@reactvision/react-viro/dist/components/AR/ViroARImageMarker").ViroARImageMarker;
+    ViroBox = require("@reactvision/react-viro/dist/components/ViroBox").ViroBox;
+    ViroMaterials =
+      require("@reactvision/react-viro/dist/components/Material/ViroMaterials").ViroMaterials;
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown Viro initialization error.";
@@ -51,15 +99,180 @@ export function ViroCameraScene() {
     );
   }
 
-  const MinimalARScene = () => <ViroARScene />;
+  if (!hasRegisteredMarkerAssets) {
+    ViroARTrackingTargets.createTargets({
+      [ARTIE_TARGET_ID]: {
+        source: ARTIE_FULL_D_IMAGE,
+        orientation: "Up",
+        physicalHeight: ARTIE_TARGET_HEIGHT_METERS,
+        physicalWidth: ARTIE_TARGET_WIDTH_METERS,
+      },
+    });
+
+    ViroMaterials.createMaterials({
+      anchoredCubeBlue: {
+        diffuseColor: "#2563EB",
+      },
+    });
+
+    hasRegisteredMarkerAssets = true;
+  }
+
+  const MarkerScene = () => (
+    <ViroARScene>
+      <ViroARImageMarker target={ARTIE_TARGET_ID}>
+        <ViroBox
+          materials={["anchoredCubeBlue"]}
+          position={[0, 0.04, 0]}
+          scale={[0.06, 0.06, 0.06]}
+        />
+      </ViroARImageMarker>
+    </ViroARScene>
+  );
+
+  const handleScreenshotPress = useCallback(async () => {
+    if (suppressNextPressRef.current) {
+      suppressNextPressRef.current = false;
+      return;
+    }
+    if (isBusy || isRecording) {
+      return;
+    }
+    const navigator = getNavigatorHandle();
+    if (!navigator?.takeScreenshot) {
+      setStatusText("Photo capture is unavailable in this build.");
+      return;
+    }
+
+    setIsBusy(true);
+    setStatusText("Capturing photo...");
+    try {
+      const result: CaptureResult = await navigator.takeScreenshot(
+        buildCaptureName("ar-photo"),
+        true,
+      );
+      if (result?.success) {
+        setStatusText("Photo saved to your library.");
+      } else {
+        setStatusText(getErrorMessage("Photo capture failed", result?.errorCode));
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unexpected screenshot error.";
+      setStatusText(`Photo capture failed: ${message}`);
+    } finally {
+      setIsBusy(false);
+    }
+  }, [getNavigatorHandle, isBusy, isRecording]);
+
+  const handleStartRecording = useCallback(async () => {
+    if (isBusy || isRecording) {
+      return;
+    }
+    suppressNextPressRef.current = true;
+
+    const navigator = getNavigatorHandle();
+    if (!navigator?.startVideoRecording) {
+      setStatusText("Video capture is unavailable in this build.");
+      return;
+    }
+
+    setIsBusy(true);
+    setStatusText("Starting video...");
+    try {
+      navigator.startVideoRecording(
+        buildCaptureName("ar-video"),
+        true,
+        (errorCode: number) => {
+          setIsRecording(false);
+          setStatusText(getErrorMessage("Recording failed", errorCode));
+        },
+      );
+      setIsRecording(true);
+      setStatusText("Recording... release to stop.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unexpected recording error.";
+      setStatusText(`Recording failed: ${message}`);
+    } finally {
+      setIsBusy(false);
+    }
+  }, [getNavigatorHandle, isBusy, isRecording]);
+
+  const handleStopRecording = useCallback(async () => {
+    if (!isRecording || isBusy) {
+      return;
+    }
+    const navigator = getNavigatorHandle();
+    if (!navigator?.stopVideoRecording) {
+      setIsRecording(false);
+      setStatusText("Unable to stop video: recorder is unavailable.");
+      return;
+    }
+
+    setIsBusy(true);
+    setStatusText("Finishing video...");
+    try {
+      const result: CaptureResult = await navigator.stopVideoRecording();
+      if (result?.success) {
+        setStatusText("Video saved to your library.");
+      } else {
+        setStatusText(getErrorMessage("Video save failed", result?.errorCode));
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unexpected stop-recording error.";
+      setStatusText(`Failed to finish video: ${message}`);
+    } finally {
+      setIsRecording(false);
+      setIsBusy(false);
+      setTimeout(() => {
+        suppressNextPressRef.current = false;
+      }, 0);
+    }
+  }, [getNavigatorHandle, isBusy, isRecording]);
+
+  const handleCapturePressOut = useCallback(() => {
+    if (isRecording) {
+      void handleStopRecording();
+      return;
+    }
+    if (suppressNextPressRef.current) {
+      setTimeout(() => {
+        suppressNextPressRef.current = false;
+      }, 0);
+    }
+  }, [handleStopRecording, isRecording]);
 
   return (
     <View style={styles.container}>
       <ViroARSceneNavigator
+        ref={arNavigatorRef}
         autofocus
-        initialScene={{ scene: MinimalARScene }}
+        initialScene={{ scene: MarkerScene }}
         style={styles.navigator}
       />
+      <View pointerEvents="box-none" style={styles.overlay}>
+        <View style={styles.bottomPanel}>
+          <Text style={styles.statusText}>{statusText}</Text>
+          <Pressable
+            accessibilityRole="button"
+            disabled={isBusy}
+            onLongPress={handleStartRecording}
+            onPress={handleScreenshotPress}
+            onPressOut={handleCapturePressOut}
+            style={({ pressed }) => [
+              styles.captureButtonOuter,
+              isRecording && styles.captureButtonOuterRecording,
+              (pressed || isBusy) && styles.captureButtonOuterPressed,
+            ]}
+          >
+            <View
+              style={[
+                styles.captureButtonInner,
+                isRecording && styles.captureButtonInnerRecording,
+              ]}
+            />
+          </Pressable>
+        </View>
+      </View>
     </View>
   );
 }
@@ -72,11 +285,54 @@ const styles = StyleSheet.create({
   navigator: {
     flex: 1,
   },
-  arText: {
-    color: "#FFFFFF",
-    fontSize: 28,
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "flex-end",
+    paddingBottom: 36,
+    paddingHorizontal: 20,
+  },
+  bottomPanel: {
+    alignItems: "center",
+    gap: 14,
+  },
+  statusText: {
+    color: "#F9FAFB",
+    fontSize: 13,
     textAlign: "center",
-    textAlignVertical: "center",
+    backgroundColor: "rgba(17,24,39,0.76)",
+    borderRadius: 14,
+    overflow: "hidden",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    maxWidth: 300,
+  },
+  captureButtonOuter: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    borderWidth: 5,
+    borderColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.2)",
+  },
+  captureButtonOuterPressed: {
+    opacity: 0.86,
+  },
+  captureButtonOuterRecording: {
+    borderColor: "#F87171",
+  },
+  captureButtonInner: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    backgroundColor: "#FFFFFF",
+  },
+  captureButtonInnerRecording: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    backgroundColor: "#EF4444",
   },
   unsupportedContainer: {
     flex: 1,
