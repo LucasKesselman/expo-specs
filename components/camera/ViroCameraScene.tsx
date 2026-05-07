@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, UIManager, View } from "react-native";
 
-const ARTIE_FULL_D_IMAGE = require("../../assets/artie-assets/UIStuff/artieFullD.png");
+const ARTIE_FULL_D_IMAGE = require("../../assets/artie-assets/UIStuff/frontTargetImage_01.png");
 const ARTIE_TARGET_HEIGHT_METERS = 0.1524;
 const ARTIE_TARGET_ID = "artieFullDTarget";
 const REMOTE_GLTF_MODEL_URI =
