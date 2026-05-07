@@ -1,3 +1,4 @@
+import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { httpsCallable } from "firebase/functions";
@@ -23,22 +24,19 @@ interface AssetSlot {
   uri: string;
   name: string;
   mimeType: string;
-  width?: number;
-  height?: number;
 }
 
-type AssetKey = "marketplaceImage" | "designAssetPng";
+type AssetKey = "marketplaceImage" | "designAsset";
 type MarketplaceStatus = "INACTIVE" | "PUBLIC" | "PRIVATE";
 
 const ASSET_LABELS: Record<AssetKey, string> = {
   marketplaceImage: "Marketplace Display Image",
-  designAssetPng: "Design Asset (.png)",
+  designAsset: "Design Asset",
 };
 
-const TEMP_UPLOAD_NAMES: Record<AssetKey, string> = {
-  marketplaceImage: "original.jpg",
-  designAssetPng: "designAsset_01.png",
-};
+function isImageKey(key: AssetKey): boolean {
+  return key === "marketplaceImage";
+}
 
 export default function CreateDigitalDesignScreen() {
   const router = useRouter();
@@ -61,31 +59,41 @@ export default function CreateDigitalDesignScreen() {
 
   const pickAsset = useCallback(async (key: AssetKey) => {
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        quality: 1,
-        allowsEditing: false,
-      });
-      if (result.canceled || result.assets.length === 0) return;
-      const picked = result.assets[0];
-      setAssets((prev) => ({
-        ...prev,
-        [key]: {
-          uri: picked.uri,
-          name: picked.fileName ?? TEMP_UPLOAD_NAMES[key],
-          mimeType: picked.mimeType ?? "image/png",
-          width: picked.width,
-          height: picked.height,
-        },
-      }));
+      if (isImageKey(key)) {
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ["images"],
+          quality: 1,
+          allowsEditing: false,
+        });
+        if (result.canceled || result.assets.length === 0) return;
+        const picked = result.assets[0];
+        setAssets((prev) => ({
+          ...prev,
+          [key]: {
+            uri: picked.uri,
+            name: picked.fileName ?? `${key}-${Date.now()}`,
+            mimeType: picked.mimeType ?? "image/png",
+          },
+        }));
+      } else {
+        const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
+        if (result.canceled || result.assets.length === 0) return;
+        const picked = result.assets[0];
+        setAssets((prev) => ({
+          ...prev,
+          [key]: {
+            uri: picked.uri,
+            name: picked.name,
+            mimeType: picked.mimeType ?? "application/octet-stream",
+          },
+        }));
+      }
     } catch {
       Alert.alert("Picker Error", `Could not pick file for ${ASSET_LABELS[key]}.`);
     }
   }, []);
 
-  const allAssetsSelected = assets.marketplaceImage && assets.designAssetPng;
-  const marketplaceImageMeetsSpec =
-    assets.marketplaceImage?.width === 1440 && assets.marketplaceImage?.height === 2560;
+  const allAssetsSelected = assets.marketplaceImage && assets.designAsset;
 
   const parsedPriceAmount = Number.parseInt(priceText, 10);
   const priceValid =
@@ -95,7 +103,6 @@ export default function CreateDigitalDesignScreen() {
     description.trim().length > 0 &&
     version.trim().length > 0 &&
     priceValid &&
-    marketplaceImageMeetsSpec &&
     !!allAssetsSelected;
 
   const handleSubmit = useCallback(async () => {
@@ -115,7 +122,8 @@ export default function CreateDigitalDesignScreen() {
     try {
       const uid = user.uid;
       const tempPrefix = `_temp/${uid}`;
-      const assetKeys = Object.keys(TEMP_UPLOAD_NAMES) as AssetKey[];
+      const assetKeys = Object.keys(ASSET_LABELS) as AssetKey[];
+      const uploadedAssetPaths: Partial<Record<AssetKey, string>> = {};
       const tags = tagsText
         .split(",")
         .map((tag) => tag.trim())
@@ -129,9 +137,17 @@ export default function CreateDigitalDesignScreen() {
 
         const response = await fetch(slot.uri);
         const blob = await response.blob();
-        const storagePath = `${tempPrefix}/${TEMP_UPLOAD_NAMES[key]}`;
+        const safeFileName = (slot.name || `${key}-${Date.now()}`).replace(/[^a-zA-Z0-9._-]/g, "_");
+        const storagePath = `${tempPrefix}/${key}/${Date.now()}-${safeFileName}`;
         const fileRef = ref(storage, storagePath);
         await uploadBytes(fileRef, blob, { contentType: slot.mimeType });
+        uploadedAssetPaths[key] = storagePath;
+      }
+
+      const marketplaceImagePath = uploadedAssetPaths.marketplaceImage;
+      const designAssetPath = uploadedAssetPaths.designAsset;
+      if (!marketplaceImagePath || !designAssetPath) {
+        throw new Error("Missing staged upload paths. Please re-select files and try again.");
       }
 
       setStatusMessage("Creating DigitalDesigns record...");
@@ -143,6 +159,8 @@ export default function CreateDigitalDesignScreen() {
           priceAmount: number;
           marketplaceStatus: MarketplaceStatus;
           version: string;
+          marketplaceImagePath: string;
+          designAssetPath: string;
         },
         { designId: string }
       >(functions, "createDigitalDesign");
@@ -154,6 +172,8 @@ export default function CreateDigitalDesignScreen() {
         priceAmount: parsedPriceAmount,
         marketplaceStatus,
         version: version.trim(),
+        marketplaceImagePath,
+        designAssetPath,
       });
 
       setStatusMessage(null);
@@ -307,25 +327,13 @@ export default function CreateDigitalDesignScreen() {
                 <Text style={styles.pickButtonText}>{assets[key] ? "Change" : "Select"}</Text>
               </Pressable>
             </View>
-            {key === "marketplaceImage" ? (
-              <Text style={styles.helpText}>
-                Required as <Text style={styles.inlineCode}>original.jpg</Text> at exactly 1440 x
-                2560.
-              </Text>
-            ) : null}
-            {key === "designAssetPng" ? (
-              <Text style={styles.helpText}>
-                Uploaded as <Text style={styles.inlineCode}>designAsset_01.png</Text>.
-              </Text>
-            ) : null}
+            <Text style={styles.helpText}>
+              {key === "marketplaceImage"
+                ? "Select an image from your photo library."
+                : "Any file can be selected and uploaded (e.g. .gltf from Files/Downloads)."}
+            </Text>
           </View>
         ))}
-        {assets.marketplaceImage && !marketplaceImageMeetsSpec ? (
-          <Text style={styles.validationText}>
-            Marketplace Display Image must be exactly 1440 x 2560. Current image:{" "}
-            {assets.marketplaceImage.width ?? "?"} x {assets.marketplaceImage.height ?? "?"}.
-          </Text>
-        ) : null}
 
         {statusMessage ? (
           <View style={styles.statusRow}>

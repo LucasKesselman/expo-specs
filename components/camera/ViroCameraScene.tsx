@@ -4,6 +4,8 @@ import { Image, Platform, Pressable, StyleSheet, Text, UIManager, View } from "r
 const ARTIE_FULL_D_IMAGE = require("../../assets/artie-assets/UIStuff/artieFullD.png");
 const ARTIE_TARGET_HEIGHT_METERS = 0.1524;
 const ARTIE_TARGET_ID = "artieFullDTarget";
+const REMOTE_GLTF_MODEL_URI =
+  "https://firebasestorage.googleapis.com/v0/b/ar-assets-bucket/o/DigitalDesigns%2Fh6XmPCTzzQ3aXRfNrjNK%2FdesignAsset_01.glb?alt=media&token=7c7a94ad-c96d-4201-bf34-c3eea74b91c7";
 const ARTIE_IMAGE_ASSET = Image.resolveAssetSource(ARTIE_FULL_D_IMAGE);
 const ARTIE_TARGET_WIDTH_METERS =
   ARTIE_IMAGE_ASSET.width && ARTIE_IMAGE_ASSET.height
@@ -68,8 +70,8 @@ export function ViroCameraScene() {
   let ViroARSceneNavigator: any;
   let ViroARTrackingTargets: any;
   let ViroARImageMarker: any;
-  let ViroBox: any;
-  let ViroMaterials: any;
+  let ViroAmbientLight: any;
+  let Viro3DObject: any;
 
   try {
     // Import component modules directly to avoid root entry side effects
@@ -81,9 +83,9 @@ export function ViroCameraScene() {
       require("@reactvision/react-viro/dist/components/AR/ViroARTrackingTargets").ViroARTrackingTargets;
     ViroARImageMarker =
       require("@reactvision/react-viro/dist/components/AR/ViroARImageMarker").ViroARImageMarker;
-    ViroBox = require("@reactvision/react-viro/dist/components/ViroBox").ViroBox;
-    ViroMaterials =
-      require("@reactvision/react-viro/dist/components/Material/ViroMaterials").ViroMaterials;
+    ViroAmbientLight =
+      require("@reactvision/react-viro/dist/components/ViroAmbientLight").ViroAmbientLight;
+    Viro3DObject = require("@reactvision/react-viro/dist/components/Viro3DObject").Viro3DObject;
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown Viro initialization error.";
@@ -109,22 +111,30 @@ export function ViroCameraScene() {
       },
     });
 
-    ViroMaterials.createMaterials({
-      anchoredCubeBlue: {
-        diffuseColor: "#2563EB",
-      },
-    });
-
     hasRegisteredMarkerAssets = true;
   }
 
   const MarkerScene = () => (
     <ViroARScene>
+      <ViroAmbientLight color="#FFFFFF" intensity={800} />
       <ViroARImageMarker target={ARTIE_TARGET_ID}>
-        <ViroBox
-          materials={["anchoredCubeBlue"]}
-          position={[0, 0.04, 0]}
-          scale={[0.06, 0.06, 0.06]}
+        <Viro3DObject
+          source={{ uri: REMOTE_GLTF_MODEL_URI }}
+          type="GLB"
+          position={[0, 0.02, 0]}
+          scale={[0.0008, 0.0008, 0.0008]}
+          rotation={[0, 0, 0]}
+          onLoadStart={() => {
+            setStatusText("Loading 3D model...");
+          }}
+          onLoadEnd={() => {
+            setStatusText("3D model loaded.");
+          }}
+          onError={(event: any) => {
+            const errorMessage =
+              event?.nativeEvent?.error || "Unknown 3D model loading error.";
+            setStatusText(`Model failed to load: ${errorMessage}`);
+          }}
         />
       </ViroARImageMarker>
     </ViroARScene>

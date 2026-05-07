@@ -141,7 +141,7 @@ export default function AccountTabScreen() {
             <View style={styles.actionCardContent}>
               <Text style={styles.actionCardTitle}>Create Digital Design</Text>
               <Text style={styles.actionCardSubtitle}>
-                Upload assets and publish a new digital design
+                Upload files and publish a new digital design
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#6B7280" />

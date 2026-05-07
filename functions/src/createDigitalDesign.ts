@@ -17,6 +17,8 @@ interface CreateDigitalDesignRequest {
   priceAmount: unknown;
   marketplaceStatus: unknown;
   version: unknown;
+  marketplaceImagePath: unknown;
+  designAssetPath: unknown;
 }
 
 function normalizeRequiredString(value: unknown, fieldName: string): string {
@@ -74,6 +76,35 @@ function normalizeMarketplaceStatus(value: unknown): MarketplaceStatus {
   return value;
 }
 
+function normalizeStagedAssetPath(value: unknown, fieldName: string, uid: string): string {
+  const path = normalizeRequiredString(value, fieldName);
+  const expectedPrefix = `_temp/${uid}/`;
+  if (!path.startsWith(expectedPrefix)) {
+    throw new HttpsError(
+      "invalid-argument",
+      `${fieldName} must point to a staged upload in ${expectedPrefix}.`,
+    );
+  }
+
+  if (path.includes("..")) {
+    throw new HttpsError("invalid-argument", `${fieldName} contains an invalid path.`);
+  }
+
+  return path;
+}
+
+function extensionFromPath(path: string): string {
+  const slashIndex = path.lastIndexOf("/");
+  const fileName = slashIndex >= 0 ? path.slice(slashIndex + 1) : path;
+  const dotIndex = fileName.lastIndexOf(".");
+  if (dotIndex <= 0 || dotIndex === fileName.length - 1) {
+    return "";
+  }
+
+  const extension = fileName.slice(dotIndex).toLowerCase();
+  return /^[.][a-z0-9]+$/.test(extension) ? extension : "";
+}
+
 async function createPlaceholderFile(bucketName: string, path: string): Promise<File> {
   const bucket = admin.storage().bucket(bucketName);
   const file = bucket.file(path);
@@ -116,6 +147,12 @@ export const createDigitalDesign = onCall({ region: REGION }, async (request) =>
   const priceAmount = normalizePriceAmount(requestData.priceAmount);
   const marketplaceStatus = normalizeMarketplaceStatus(requestData.marketplaceStatus);
   const version = normalizeRequiredString(requestData.version, "version");
+  const marketplaceImagePath = normalizeStagedAssetPath(
+    requestData.marketplaceImagePath,
+    "marketplaceImagePath",
+    uid,
+  );
+  const designAssetPath = normalizeStagedAssetPath(requestData.designAssetPath, "designAssetPath", uid);
 
   const authTokenName = request.auth?.token?.name;
   const authorFullName = typeof authTokenName === "string" ? authTokenName.trim() : "";
@@ -161,25 +198,27 @@ export const createDigitalDesign = onCall({ region: REGION }, async (request) =>
     cleanupFiles.push(arAssetsFolderPlaceholder);
 
     const stagingBucket = admin.storage().bucket();
-    const stagingPrefix = `_temp/${uid}`;
+    const originalSource = stagingBucket.file(marketplaceImagePath);
+    const designAssetSource = stagingBucket.file(designAssetPath);
 
-    const originalSource = stagingBucket.file(`${stagingPrefix}/original.jpg`);
-    const designAssetSource = stagingBucket.file(`${stagingPrefix}/designAsset_01.png`);
-
-    await assertSourceObjectExists(originalSource, "original.jpg");
-    await assertSourceObjectExists(designAssetSource, "designAsset_01.png");
+    await assertSourceObjectExists(originalSource, "marketplaceImagePath");
+    await assertSourceObjectExists(designAssetSource, "designAssetPath");
 
     const marketplaceBucket = admin.storage().bucket(MARKETPLACE_ASSETS_BUCKET);
     const arAssetsBucket = admin.storage().bucket(AR_ASSETS_BUCKET);
 
     const originalDestination = marketplaceBucket.file(
-      `${DIGITAL_DESIGNS_COLLECTION}/${designId}/Original/original.jpg`,
+      `${DIGITAL_DESIGNS_COLLECTION}/${designId}/Original/original${extensionFromPath(
+        marketplaceImagePath,
+      )}`,
     );
     await originalSource.copy(originalDestination);
     cleanupFiles.push(originalDestination);
 
     const designAssetDestination = arAssetsBucket.file(
-      `${DIGITAL_DESIGNS_COLLECTION}/${designId}/designAsset_01.png`,
+      `${DIGITAL_DESIGNS_COLLECTION}/${designId}/designAsset_01${extensionFromPath(
+        designAssetPath,
+      )}`,
     );
     await designAssetSource.copy(designAssetDestination);
     cleanupFiles.push(designAssetDestination);
@@ -187,7 +226,8 @@ export const createDigitalDesign = onCall({ region: REGION }, async (request) =>
     logger.info("Created digital design and promoted staged assets", {
       uid,
       designId,
-      stagingPrefix,
+      marketplaceImagePath,
+      designAssetPath,
     });
 
     return { designId };
