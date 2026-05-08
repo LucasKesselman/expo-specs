@@ -240,10 +240,13 @@ export const createGarment = onRequest({ region: REGION }, async (req, res) => {
         ...metadata,
       };
 
-      const owner = normalizeRequiredString(
-        getMetadataValue(resolvedMetadata, ["owner", "ownerUid", "uid"], "owner"),
+      const ownerFromMetadata = getOptionalMetadataValue(resolvedMetadata, [
         "owner",
-      );
+        "ownerUid",
+        "uid",
+      ]);
+      const ownerFromClientReference = normalizeOptionalString(session.client_reference_id);
+      const owner = normalizeRequiredString(ownerFromMetadata ?? ownerFromClientReference, "owner");
       const physicalDesignId = normalizeRequiredString(
         getMetadataValue(resolvedMetadata, ["physicalDesignId", "physicalDesign"], "physicalDesignId"),
         "physicalDesignId",

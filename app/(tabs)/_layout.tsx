@@ -89,6 +89,7 @@ export default function TabsLayout() {
         name="camera"
         options={{
           title: "Camera",
+          unmountOnBlur: true,
           tabBarIcon: ({ size }) => (
             <Ionicons name="camera" color="#EF4444" size={size} />
           ),

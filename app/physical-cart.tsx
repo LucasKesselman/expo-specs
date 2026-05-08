@@ -90,6 +90,47 @@ function getStripePriceId(data: DocumentData): string | null {
   );
 }
 
+function normalizeHttpsBaseUrl(value: string | undefined | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+
+  try {
+    const parsed = new URL(withProtocol);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      return null;
+    }
+
+    return parsed.origin;
+  } catch {
+    return null;
+  }
+}
+
+function getCheckoutRedirectBaseUrl(): string {
+  return (
+    normalizeHttpsBaseUrl(process.env.EXPO_PUBLIC_CHECKOUT_BASE_URL) ??
+    normalizeHttpsBaseUrl(process.env.EXPO_PUBLIC_APP_URL) ??
+    normalizeHttpsBaseUrl(process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN) ??
+    "https://pygmalions-specs.firebaseapp.com"
+  );
+}
+
+function buildCheckoutRedirectUrl(pathname: string, queryParams: Record<string, string>): string {
+  const url = new URL(pathname, getCheckoutRedirectBaseUrl());
+  for (const [key, value] of Object.entries(queryParams)) {
+    url.searchParams.set(key, value);
+  }
+  return url.toString();
+}
+
 export default function PhysicalCartScreen() {
   const params = useLocalSearchParams();
   const { user, loading } = useAuth();
@@ -224,11 +265,15 @@ export default function PhysicalCartScreen() {
     setIsCheckingOut(true);
     setErrorMessage(null);
 
-    const successUrl = Linking.createURL("/(tabs)/physical-marketplace", {
-      queryParams: { checkout: "success" },
+    const successUrl = buildCheckoutRedirectUrl("/checkout/success", {
+      checkout: "success",
+      source: "stripe",
     });
-    const cancelUrl = Linking.createURL("/physical-cart", {
-      queryParams: { designId: summary.designId, collection: summary.sourceCollection },
+    const cancelUrl = buildCheckoutRedirectUrl("/checkout/cancel", {
+      designId: summary.designId,
+      collection: summary.sourceCollection,
+      checkout: "cancelled",
+      source: "stripe",
     });
 
     try {

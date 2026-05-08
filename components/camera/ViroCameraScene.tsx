@@ -7,9 +7,16 @@ const ARTIE_TARGET_ID = "artieFullDTarget";
 const REMOTE_GLTF_MODEL_URI =
   "https://firebasestorage.googleapis.com/v0/b/ar-assets-bucket/o/DigitalDesigns%2Fh6XmPCTzzQ3aXRfNrjNK%2FdesignAsset_01.glb?alt=media&token=7c7a94ad-c96d-4201-bf34-c3eea74b91c7";
 const ARTIE_IMAGE_ASSET = Image.resolveAssetSource(ARTIE_FULL_D_IMAGE);
+const ARTIE_IMAGE_WIDTH_PX = Number(ARTIE_IMAGE_ASSET?.width);
+const ARTIE_IMAGE_HEIGHT_PX = Number(ARTIE_IMAGE_ASSET?.height);
+const HAS_VALID_ARTIE_IMAGE_DIMENSIONS =
+  Number.isFinite(ARTIE_IMAGE_WIDTH_PX) &&
+  Number.isFinite(ARTIE_IMAGE_HEIGHT_PX) &&
+  ARTIE_IMAGE_WIDTH_PX > 0 &&
+  ARTIE_IMAGE_HEIGHT_PX > 0;
 const ARTIE_TARGET_WIDTH_METERS =
-  ARTIE_IMAGE_ASSET.width && ARTIE_IMAGE_ASSET.height
-    ? ARTIE_TARGET_HEIGHT_METERS * (ARTIE_IMAGE_ASSET.width / ARTIE_IMAGE_ASSET.height)
+  HAS_VALID_ARTIE_IMAGE_DIMENSIONS
+    ? ARTIE_TARGET_HEIGHT_METERS * (ARTIE_IMAGE_WIDTH_PX / ARTIE_IMAGE_HEIGHT_PX)
     : ARTIE_TARGET_HEIGHT_METERS;
 
 let hasRegisteredMarkerAssets = false;
