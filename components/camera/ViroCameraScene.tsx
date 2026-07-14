@@ -1,23 +1,62 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, UIManager, View } from "react-native";
 
-const ARTIE_FULL_D_IMAGE = require("../../assets/artie-assets/UIStuff/frontTargetImage_01.png");
+import {
+  detectDesignAssetKind,
+  getDesignAssetKindLabel,
+  type DesignAssetMeta,
+} from "../../lib/detectDesignAssetKind";
+
 const ARTIE_TARGET_HEIGHT_METERS = 0.1524;
-const ARTIE_TARGET_ID = "artieFullDTarget";
-const REMOTE_GLTF_MODEL_URI =
-  "https://firebasestorage.googleapis.com/v0/b/ar-assets-bucket/o/DigitalDesigns%2Fh6XmPCTzzQ3aXRfNrjNK%2FdesignAsset_01.glb?alt=media&token=7c7a94ad-c96d-4201-bf34-c3eea74b91c7";
-const ARTIE_IMAGE_ASSET = Image.resolveAssetSource(ARTIE_FULL_D_IMAGE);
-const ARTIE_IMAGE_WIDTH_PX = Number(ARTIE_IMAGE_ASSET?.width);
-const ARTIE_IMAGE_HEIGHT_PX = Number(ARTIE_IMAGE_ASSET?.height);
-const HAS_VALID_ARTIE_IMAGE_DIMENSIONS =
-  Number.isFinite(ARTIE_IMAGE_WIDTH_PX) &&
-  Number.isFinite(ARTIE_IMAGE_HEIGHT_PX) &&
-  ARTIE_IMAGE_WIDTH_PX > 0 &&
-  ARTIE_IMAGE_HEIGHT_PX > 0;
-const ARTIE_TARGET_WIDTH_METERS =
-  HAS_VALID_ARTIE_IMAGE_DIMENSIONS
-    ? ARTIE_TARGET_HEIGHT_METERS * (ARTIE_IMAGE_WIDTH_PX / ARTIE_IMAGE_HEIGHT_PX)
-    : ARTIE_TARGET_HEIGHT_METERS;
+
+const ARTIE_TARGET_IMAGE_ENTRIES = [
+  {
+    id: "frontTargetImage_01",
+    source: require("../../assets/artie-assets/TargetImages/frontTargetImage_01.png"),
+  },
+  {
+    id: "frontTargetImage_02",
+    source: require("../../assets/artie-assets/TargetImages/frontTargetImage_02.jpeg"),
+  },
+  {
+    id: "frontTargetImage_03",
+    source: require("../../assets/artie-assets/TargetImages/frontTargetImage_03.jpeg"),
+  },
+] as const;
+
+type ArtieTargetImage = {
+  id: string;
+  source: number;
+  physicalWidthMeters: number;
+  physicalHeightMeters: number;
+};
+
+function resolveTargetImageDimensions(source: number, physicalHeightMeters: number) {
+  const asset = Image.resolveAssetSource(source);
+  const widthPx = Number(asset?.width);
+  const heightPx = Number(asset?.height);
+  const hasValidDimensions =
+    Number.isFinite(widthPx) && Number.isFinite(heightPx) && widthPx > 0 && heightPx > 0;
+
+  return {
+    physicalWidthMeters: hasValidDimensions
+      ? physicalHeightMeters * (widthPx / heightPx)
+      : physicalHeightMeters,
+    physicalHeightMeters,
+  };
+}
+
+const ARTIE_TARGET_IMAGES: ArtieTargetImage[] = ARTIE_TARGET_IMAGE_ENTRIES.map(
+  ({ id, source }) => ({
+    id,
+    source,
+    ...resolveTargetImageDimensions(source, ARTIE_TARGET_HEIGHT_METERS),
+  }),
+);
+
+const REMOTE_DESIGN_ASSET_URI =
+  "https://firebasestorage.googleapis.com/v0/b/ar-assets-bucket/o/DigitalDesigns%2FDcl3WxHNomlc2rBA1xuv%2FdesignAsset_01.mp4?alt=media&token=39da2181-eaef-475e-aec4-f4ca084c18ac";
+const DESIGN_ASSET_META = detectDesignAssetKind(REMOTE_DESIGN_ASSET_URI);
 
 let hasRegisteredMarkerAssets = false;
 
@@ -35,12 +74,103 @@ function getErrorMessage(prefix: string, errorCode?: number) {
   return errorCode !== undefined ? `${prefix} (code ${errorCode}).` : prefix;
 }
 
+function getUnsupportedAssetMessage(assetMeta: DesignAssetMeta) {
+  if (assetMeta.extension) {
+    return `Unsupported design asset type: ${assetMeta.extension}`;
+  }
+
+  return "Unsupported design asset: could not determine file type.";
+}
+
+type DesignAssetContentProps = {
+  assetMeta: DesignAssetMeta;
+  uri: string;
+  markerWidthMeters: number;
+  markerHeightMeters: number;
+  Viro3DObject: any;
+  ViroImage: any;
+  ViroVideo: any;
+  onStatusChange: (message: string) => void;
+};
+
+function DesignAssetContent({
+  assetMeta,
+  uri,
+  markerWidthMeters,
+  markerHeightMeters,
+  Viro3DObject,
+  ViroImage,
+  ViroVideo,
+  onStatusChange,
+}: DesignAssetContentProps) {
+  const source = { uri };
+  const assetLabel = getDesignAssetKindLabel(assetMeta.kind);
+  const loadHandlers = {
+    onLoadStart: () => {
+      onStatusChange(`Loading ${assetLabel}...`);
+    },
+    onLoadEnd: () => {
+      onStatusChange(`${assetLabel.charAt(0).toUpperCase()}${assetLabel.slice(1)} loaded.`);
+    },
+    onError: (event: any) => {
+      const errorMessage = event?.nativeEvent?.error || `Unknown ${assetLabel} loading error.`;
+      onStatusChange(`${assetLabel.charAt(0).toUpperCase()}${assetLabel.slice(1)} failed to load: ${errorMessage}`);
+    },
+  };
+
+  switch (assetMeta.kind) {
+    case "image":
+      return (
+        <ViroImage
+          source={source}
+          width={markerWidthMeters}
+          height={markerHeightMeters}
+          position={[0, 0, 0]}
+          rotation={[-90, 0, 0]}
+          {...loadHandlers}
+        />
+      );
+    case "video":
+      return (
+        <ViroVideo
+          source={source}
+          width={markerWidthMeters}
+          height={markerHeightMeters}
+          position={[0, 0, 0]}
+          rotation={[-90, 0, 0]}
+          loop
+          muted={false}
+          {...loadHandlers}
+        />
+      );
+    case "model3d":
+      return (
+        <Viro3DObject
+          source={source}
+          type={assetMeta.viro3dType}
+          position={[0, 0.02, 0]}
+          scale={[0.0008, 0.0008, 0.0008]}
+          rotation={[315, 0, 0]}
+          {...loadHandlers}
+        />
+      );
+    default:
+      return null;
+  }
+}
+
 export function ViroCameraScene() {
   const arNavigatorRef = useRef<any>(null);
   const suppressNextPressRef = useRef(false);
   const [isBusy, setIsBusy] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [statusText, setStatusText] = useState("Tap for photo. Hold for video.");
+
+  useEffect(() => {
+    if (DESIGN_ASSET_META.kind === "unsupported") {
+      setStatusText(getUnsupportedAssetMessage(DESIGN_ASSET_META));
+    }
+  }, []);
 
   const getNavigatorHandle = useCallback(() => {
     const ref = arNavigatorRef.current;
@@ -79,6 +209,8 @@ export function ViroCameraScene() {
   let ViroARImageMarker: any;
   let ViroAmbientLight: any;
   let Viro3DObject: any;
+  let ViroImage: any;
+  let ViroVideo: any;
 
   try {
     // Import component modules directly to avoid root entry side effects
@@ -93,6 +225,8 @@ export function ViroCameraScene() {
     ViroAmbientLight =
       require("@reactvision/react-viro/dist/components/ViroAmbientLight").ViroAmbientLight;
     Viro3DObject = require("@reactvision/react-viro/dist/components/Viro3DObject").Viro3DObject;
+    ViroImage = require("@reactvision/react-viro/dist/components/ViroImage").ViroImage;
+    ViroVideo = require("@reactvision/react-viro/dist/components/ViroVideo").ViroVideo;
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown Viro initialization error.";
@@ -109,14 +243,19 @@ export function ViroCameraScene() {
   }
 
   if (!hasRegisteredMarkerAssets) {
-    ViroARTrackingTargets.createTargets({
-      [ARTIE_TARGET_ID]: {
-        source: ARTIE_FULL_D_IMAGE,
-        orientation: "Up",
-        physicalHeight: ARTIE_TARGET_HEIGHT_METERS,
-        physicalWidth: ARTIE_TARGET_WIDTH_METERS,
-      },
-    });
+    ViroARTrackingTargets.createTargets(
+      Object.fromEntries(
+        ARTIE_TARGET_IMAGES.map((target) => [
+          target.id,
+          {
+            source: target.source,
+            orientation: "Up",
+            physicalHeight: target.physicalHeightMeters,
+            physicalWidth: target.physicalWidthMeters,
+          },
+        ]),
+      ),
+    );
 
     hasRegisteredMarkerAssets = true;
   }
@@ -124,26 +263,22 @@ export function ViroCameraScene() {
   const MarkerScene = () => (
     <ViroARScene>
       <ViroAmbientLight color="#FFFFFF" intensity={800} />
-      <ViroARImageMarker target={ARTIE_TARGET_ID}>
-        <Viro3DObject
-          source={{ uri: REMOTE_GLTF_MODEL_URI }}
-          type="GLB"
-          position={[0, 0.02, 0]}
-          scale={[0.0008, 0.0008, 0.0008]}
-          rotation={[0, 0, 0]}
-          onLoadStart={() => {
-            setStatusText("Loading 3D model...");
-          }}
-          onLoadEnd={() => {
-            setStatusText("3D model loaded.");
-          }}
-          onError={(event: any) => {
-            const errorMessage =
-              event?.nativeEvent?.error || "Unknown 3D model loading error.";
-            setStatusText(`Model failed to load: ${errorMessage}`);
-          }}
-        />
-      </ViroARImageMarker>
+      {ARTIE_TARGET_IMAGES.map((target) => (
+        <ViroARImageMarker key={target.id} target={target.id}>
+          {DESIGN_ASSET_META.kind !== "unsupported" ? (
+            <DesignAssetContent
+              assetMeta={DESIGN_ASSET_META}
+              uri={REMOTE_DESIGN_ASSET_URI}
+              markerWidthMeters={target.physicalWidthMeters}
+              markerHeightMeters={target.physicalHeightMeters}
+              Viro3DObject={Viro3DObject}
+              ViroImage={ViroImage}
+              ViroVideo={ViroVideo}
+              onStatusChange={setStatusText}
+            />
+          ) : null}
+        </ViroARImageMarker>
+      ))}
     </ViroARScene>
   );
 
