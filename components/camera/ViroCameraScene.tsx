@@ -54,10 +54,6 @@ const ARTIE_TARGET_IMAGES: ArtieTargetImage[] = ARTIE_TARGET_IMAGE_ENTRIES.map(
   }),
 );
 
-const REMOTE_DESIGN_ASSET_URI =
-  "https://firebasestorage.googleapis.com/v0/b/ar-assets-bucket/o/DigitalDesigns%2FDcl3WxHNomlc2rBA1xuv%2FdesignAsset_01.mp4?alt=media&token=39da2181-eaef-475e-aec4-f4ca084c18ac";
-const DESIGN_ASSET_META = detectDesignAssetKind(REMOTE_DESIGN_ASSET_URI);
-
 let hasRegisteredMarkerAssets = false;
 
 type CaptureResult = {
@@ -159,18 +155,26 @@ function DesignAssetContent({
   }
 }
 
-export function ViroCameraScene() {
+export type ViroCameraSceneProps = {
+  designAssetUri: string;
+  onRescan?: () => void;
+};
+
+export function ViroCameraScene({ designAssetUri, onRescan }: ViroCameraSceneProps) {
   const arNavigatorRef = useRef<any>(null);
   const suppressNextPressRef = useRef(false);
   const [isBusy, setIsBusy] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const assetMeta = detectDesignAssetKind(designAssetUri);
   const [statusText, setStatusText] = useState("Tap for photo. Hold for video.");
 
   useEffect(() => {
-    if (DESIGN_ASSET_META.kind === "unsupported") {
-      setStatusText(getUnsupportedAssetMessage(DESIGN_ASSET_META));
+    if (assetMeta.kind === "unsupported") {
+      setStatusText(getUnsupportedAssetMessage(assetMeta));
+    } else {
+      setStatusText("Tap for photo. Hold for video.");
     }
-  }, []);
+  }, [assetMeta.kind, assetMeta.extension, designAssetUri]);
 
   const getNavigatorHandle = useCallback(() => {
     const ref = arNavigatorRef.current;
@@ -265,10 +269,10 @@ export function ViroCameraScene() {
       <ViroAmbientLight color="#FFFFFF" intensity={800} />
       {ARTIE_TARGET_IMAGES.map((target) => (
         <ViroARImageMarker key={target.id} target={target.id}>
-          {DESIGN_ASSET_META.kind !== "unsupported" ? (
+          {assetMeta.kind !== "unsupported" ? (
             <DesignAssetContent
-              assetMeta={DESIGN_ASSET_META}
-              uri={REMOTE_DESIGN_ASSET_URI}
+              assetMeta={assetMeta}
+              uri={designAssetUri}
               markerWidthMeters={target.physicalWidthMeters}
               markerHeightMeters={target.physicalHeightMeters}
               Viro3DObject={Viro3DObject}
@@ -404,6 +408,15 @@ export function ViroCameraScene() {
       <View pointerEvents="box-none" style={styles.overlay}>
         <View style={styles.bottomPanel}>
           <Text style={styles.statusText}>{statusText}</Text>
+          {onRescan ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={onRescan}
+              style={({ pressed }) => [styles.rescanButton, pressed && styles.rescanButtonPressed]}
+            >
+              <Text style={styles.rescanButtonText}>Rescan QR</Text>
+            </Pressable>
+          ) : null}
           <Pressable
             accessibilityRole="button"
             disabled={isBusy}
@@ -457,6 +470,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     maxWidth: 300,
+  },
+  rescanButton: {
+    backgroundColor: "rgba(17,24,39,0.76)",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  rescanButtonPressed: {
+    opacity: 0.86,
+  },
+  rescanButtonText: {
+    color: "#F9FAFB",
+    fontSize: 14,
+    fontWeight: "600",
   },
   captureButtonOuter: {
     width: 84,

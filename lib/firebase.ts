@@ -10,5 +10,7 @@ const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 export const firestore = getFirestore(app);
 export const storage = getStorage(app);
+export const arAssetsStorage = getStorage(app, "gs://ar-assets-bucket");
 export const functions = getFunctions(app, "us-central1");
 export const auth = getAuth(app);
+export { app };

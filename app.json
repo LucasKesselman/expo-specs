@@ -21,13 +21,22 @@
     "android": {
       "package": "com.lucaskesselman.expospecs",
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "output": "static"
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to scan garment QR codes."
+        }
+      ],
       [
         "@reactvision/react-viro",
         {
