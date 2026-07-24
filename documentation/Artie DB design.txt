@@ -59,7 +59,6 @@
 		id: user id, links to auth uid
 		firstName: 
 		lastName:
-		fullName:
 		email:
 		username:
 		savedDigitalDesigns: [] array of references to digital design documents  
@@ -67,17 +66,20 @@
 		ownedGarments: [] array of references to garment documents  
 	PhysicalDesigns/{physicalDesignId}/
 		id: string unique ID
-		name: string name 
+		name: string name
+		designNumber: string design number given by designer + 1 letter color designation 
+		color: string match to color of blank/primary fabric - will show in marketplace as this color
 		description: string 
-		author: uId
-		authorFullName: author's display Name
+		designerName: designer's name 
+		authorFullName: author's Name (database document creator)
 		createdAt: creation datetime
 		lastUpdatedAt: last updated datetime
 		tags: [] list of tags
 		savedCount: positive int of number of times this has been saved in the marketplace
 		purchaseCount: positive int of number of times this has been purchased
+		printCount: positive int of number of garments with this design and printStatus == PRINTED
 		priceAmount: int numerical value for the price in USD cents (2999 -> "$29.99") 
-		marketplaceStatus: "INACTIVE"|"PUBLIC"|"PRIVATE"
+		marketplaceStatus: "INACTIVE"|"PUBLIC"|"PRIVATE"  - inactive means design exists but isnt available yet, public means its on the marketplace, private means the design is for a specific purpose
 		marketplaceThumbnailUrl: string HTTPS URL for marketplace cards 
 		marketplaceFullImageUrl: string HTTPS URL for detail page image 
 		stripeProductId:
@@ -104,9 +106,12 @@
 		digitalDesign: reference to digitalDesign document
 		physicalDesign: reference to PhysicalDesign document
 		printStatus:"NOT_PRINTED"|"PRINTING"|"PRINTED" ...etc
+		printedAt: timestamp which is updated when a print order is generated
+		shippedStatus: "ORDERED"|"INVENTORY"|"LABEL_GENERATED"|"SHIPPED"
+		shippedUpdate: timestamp updated upon each shipping status change
 		size: "XS"|"S"|"M"|"L"|"XL"
 		color: color of the garment blank fabric from manufacture
-		qrCodeStatus: "Pending"|"Generated"|...etc
-		version: internal ID for design team
-		verificationStatus: 
-		
+		qrCodeStatus: "PENDING"|"GENERATED"  
+		createdAt: timestamp which updates when this garment is created and the QR is generated
+		version: internal ID for design team plus backprint version eg "2601G00"
+		verificationStatus: "NOT_VERIFIED"|"VERIFIED"  Default: NOT_VERIFIED
