@@ -77,6 +77,18 @@ export default function CreatePhysicalDesignScreen() {
   const pickAsset = useCallback(async (key: AssetKey) => {
     try {
       if (isImageKey(key)) {
+        let permission = await ImagePicker.getMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+          permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        }
+        if (!permission.granted) {
+          Alert.alert(
+            "Photo Library Permission",
+            "Allow photo library access to upload marketplace and design images.",
+          );
+          return;
+        }
+
         const result = await ImagePicker.launchImageLibraryAsync({
           mediaTypes: ["images"],
           quality: 1,

@@ -13,7 +13,7 @@
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses the camera for AR experiences.",
         "NSMicrophoneUsageDescription": "This app can record audio while capturing AR moments.",
-        "NSPhotoLibraryUsageDescription": "This app can access your photo library for AR captures.",
+        "NSPhotoLibraryUsageDescription": "This app can access your photo library for AR captures and design uploads.",
         "NSPhotoLibraryAddUsageDescription": "This app can save AR photos and videos to your library.",
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -35,6 +35,12 @@
         "expo-camera",
         {
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to scan garment QR codes."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to upload marketplace and design images."
         }
       ],
       [
