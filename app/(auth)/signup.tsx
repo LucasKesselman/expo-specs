@@ -7,6 +7,8 @@ import { useAuth } from "../../contexts/AuthContext";
 export default function SignupScreen() {
   const router = useRouter();
   const { signUp } = useAuth();
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -14,8 +16,24 @@ export default function SignupScreen() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const formComplete =
+    firstName.trim().length > 0 &&
+    lastName.trim().length > 0 &&
+    username.trim().length > 0 &&
+    email.trim().length > 0 &&
+    password.length > 0 &&
+    confirmPassword.length > 0;
+
   const handleSignup = async () => {
     if (submitting) return;
+    if (!firstName.trim()) {
+      setError("Please enter your first name.");
+      return;
+    }
+    if (!lastName.trim()) {
+      setError("Please enter your last name.");
+      return;
+    }
     if (!username.trim()) {
       setError("Please enter a username.");
       return;
@@ -30,7 +48,13 @@ export default function SignupScreen() {
     setSubmitting(true);
 
     try {
-      await signUp(email, password, username);
+      await signUp({
+        email,
+        password,
+        username,
+        firstName,
+        lastName,
+      });
       router.replace("/(tabs)/account");
     } catch (signupError) {
       const message = signupError instanceof Error ? signupError.message : "Failed to create account.";
@@ -51,9 +75,29 @@ export default function SignupScreen() {
 
       <TextInput
         style={styles.input}
+        value={firstName}
+        onChangeText={setFirstName}
+        autoCapitalize="words"
+        autoCorrect={false}
+        placeholder="First Name"
+        placeholderTextColor="#6B7280"
+        editable={!submitting}
+      />
+      <TextInput
+        style={styles.input}
+        value={lastName}
+        onChangeText={setLastName}
+        autoCapitalize="words"
+        autoCorrect={false}
+        placeholder="Last Name"
+        placeholderTextColor="#6B7280"
+        editable={!submitting}
+      />
+      <TextInput
+        style={styles.input}
         value={username}
         onChangeText={setUsername}
-        autoCapitalize="words"
+        autoCapitalize="none"
         autoCorrect={false}
         placeholder="Username"
         placeholderTextColor="#6B7280"
@@ -98,12 +142,11 @@ export default function SignupScreen() {
       <Pressable
         style={({ pressed }) => [
           styles.submitButton,
-          (submitting || !username.trim() || !email || !password || !confirmPassword) &&
-            styles.submitButtonDisabled,
+          (submitting || !formComplete) && styles.submitButtonDisabled,
           pressed && styles.buttonPressed,
         ]}
         onPress={handleSignup}
-        disabled={submitting || !username.trim() || !email || !password || !confirmPassword}
+        disabled={submitting || !formComplete}
       >
         {submitting ? (
           <ActivityIndicator color="#111827" size="small" />
@@ -111,7 +154,6 @@ export default function SignupScreen() {
           <Text style={styles.submitButtonText}>Sign Up</Text>
         )}
       </Pressable>
-
     </View>
   );
 }

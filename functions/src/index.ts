@@ -1,5 +1,6 @@
 export { generateGarmentQRCodes } from "./generateGarmentQRCodes";
 export { generateInventoryGarments } from "./generateInventoryGarments";
+export { onAuthUserCreated } from "./onAuthUserCreated";
 export { processMarketplaceAssetDisplayImage } from "./processMarketplaceAssetDisplayImage";
 export { createPhysicalDesign } from "./createPhysicalDesign";
 export { createDigitalDesign } from "./createDigitalDesign";

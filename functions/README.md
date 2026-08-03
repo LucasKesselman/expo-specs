@@ -6,7 +6,22 @@ This project uses the Firebase Stripe extension and also includes a custom Strip
 
 - `generateGarmentQRCodes` (HTTP): manual admin endpoint to generate garment QR PNGs.
 - `generateInventoryGarments` (HTTP): ops endpoint to bulk-create unassigned Garments with auto-IDs and QR codes.
+- `onAuthUserCreated` (Auth trigger, 1st gen): creates `Users/{uid}` when a Firebase Auth account is created.
 - `createGarment` (HTTP): Stripe webhook endpoint for `checkout.session.completed` that creates `Garments` records.
+
+## `onAuthUserCreated` behavior
+
+1st gen Auth `user().onCreate` trigger (Gen 2 does not support post-create Auth triggers). Runs when any Firebase Auth user is created.
+
+- Creates `Users/{uid}` with Admin SDK (bypasses Firestore rules) if the doc does not already exist.
+- Initial fields: `id`, `email`, `username` (from Auth `displayName` if set), empty `firstName`/`lastName`, empty `savedDigitalDesigns` / `savedPhysicalDesigns` / `ownedGarments`.
+- The app signup flow merges `firstName`, `lastName`, and `username` onto the same doc after `updateProfile`.
+
+Deploy:
+
+```bash
+firebase deploy --only functions:onAuthUserCreated
+```
 
 ## `createGarment` behavior
 
