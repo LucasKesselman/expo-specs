@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
-import { collection, doc, getDoc } from "firebase/firestore";
+import { collection, doc, getDoc, onSnapshot, query, where } from "firebase/firestore";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -13,14 +13,21 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { DigitalDesignCard } from "../../components/marketplace/DigitalDesignCard";
 import { useAuth } from "../../contexts/AuthContext";
 import { firestore } from "../../lib/firebase";
+import {
+  mapFirestoreDocToMarketplaceDesign,
+  type MarketplaceDesign,
+} from "../../types/marketplaceDesign";
 
 const FALLBACK_TAB_BAR_HEIGHT = 56;
 const FALLBACK_ACCESSORY_HEIGHT = 70;
 const FALLBACK_ACCESSORY_SPACING = 16;
 const USERS_COLLECTION = "Users";
 const GARMENTS_COLLECTION = "Garments";
+const DIGITAL_DESIGNS_COLLECTION = "DigitalDesigns";
 
 type GarmentCardData = {
   id: string;
@@ -109,9 +116,9 @@ export default function WardrobeScreen() {
   const [isLoadingGarments, setIsLoadingGarments] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [ownedGarments, setOwnedGarments] = useState<GarmentCardData[]>([]);
-  const [garmentsErrorMessage, setGarmentsErrorMessage] = useState<
-    string | null
-  >(null);
+  const [authoredDesigns, setAuthoredDesigns] = useState<MarketplaceDesign[]>([]);
+  const [garmentsErrorMessage, setGarmentsErrorMessage] = useState<string | null>(null);
+  const [designsErrorMessage, setDesignsErrorMessage] = useState<string | null>(null);
   const listTopInset = Platform.OS === "ios" ? insets.top + 16 : 16;
   const listBottomInset =
     Platform.OS === "ios"
@@ -120,6 +127,39 @@ export default function WardrobeScreen() {
         FALLBACK_ACCESSORY_HEIGHT +
         FALLBACK_ACCESSORY_SPACING +
         insets.bottom;
+
+  useEffect(() => {
+    if (!user) {
+      setAuthoredDesigns([]);
+      setDesignsErrorMessage(null);
+      return;
+    }
+
+    setDesignsErrorMessage(null);
+    const designsQuery = query(
+      collection(firestore, DIGITAL_DESIGNS_COLLECTION),
+      where("author", "==", user.uid),
+    );
+
+    const unsubscribe = onSnapshot(
+      designsQuery,
+      (snapshot) => {
+        const designs = snapshot.docs
+          .map((designDoc) =>
+            mapFirestoreDocToMarketplaceDesign(designDoc, DIGITAL_DESIGNS_COLLECTION),
+          )
+          .filter((design) => design.marketplaceStatus !== "INACTIVE");
+        setAuthoredDesigns(designs);
+        setDesignsErrorMessage(null);
+      },
+      () => {
+        setAuthoredDesigns([]);
+        setDesignsErrorMessage("We couldn't load your digital designs right now.");
+      },
+    );
+
+    return unsubscribe;
+  }, [user]);
 
   const loadOwnedGarments = useCallback(
     async (refresh = false) => {
@@ -156,9 +196,7 @@ export default function WardrobeScreen() {
           rawOwnedGarments
             .map(normalizeOwnedGarmentReference)
             .filter(
-              (
-                reference,
-              ): reference is OwnedGarmentReference => reference !== null,
+              (reference): reference is OwnedGarmentReference => reference !== null,
             )
             .reduce((acc, reference) => {
               const dedupeKey = reference.garmentPath ?? reference.garmentId;
@@ -254,16 +292,22 @@ export default function WardrobeScreen() {
     void loadOwnedGarments();
   }, [loadOwnedGarments]);
 
+  const hasAnyContent = authoredDesigns.length > 0 || ownedGarments.length > 0;
   const emptyMessage = !user
-    ? "Sign in to view your garments."
+    ? "Sign in to view your wardrobe."
     : isLoadingGarments
-      ? "Loading your garments..."
-      : garmentsErrorMessage ?? "No garments found on your account yet.";
+      ? "Loading your wardrobe..."
+      : garmentsErrorMessage ??
+        designsErrorMessage ??
+        "No designs or garments found on your account yet.";
 
   return (
     <View style={styles.screenContainer}>
       {garmentsErrorMessage && ownedGarments.length > 0 ? (
         <Text style={styles.errorText}>{garmentsErrorMessage}</Text>
+      ) : null}
+      {designsErrorMessage && authoredDesigns.length > 0 ? (
+        <Text style={styles.errorText}>{designsErrorMessage}</Text>
       ) : null}
       <FlatList
         style={styles.list}
@@ -335,7 +379,7 @@ export default function WardrobeScreen() {
           </View>
         )}
         contentContainerStyle={[
-          ownedGarments.length === 0
+          !hasAnyContent
             ? styles.emptyListContentContainer
             : styles.listContentContainer,
           { paddingTop: listTopInset },
@@ -343,11 +387,55 @@ export default function WardrobeScreen() {
         ]}
         columnWrapperStyle={ownedGarments.length > 0 ? styles.columnWrapper : undefined}
         ListHeaderComponent={
-          isRefreshing ? (
-            <View style={styles.refreshIndicatorContainer}>
-              <ActivityIndicator size="small" color="#93C5FD" />
-            </View>
-          ) : null
+          <View>
+            {isRefreshing ? (
+              <View style={styles.refreshIndicatorContainer}>
+                <ActivityIndicator size="small" color="#93C5FD" />
+              </View>
+            ) : null}
+
+            {authoredDesigns.length > 0 ? (
+              <View style={styles.sectionBlock}>
+                <Text style={styles.sectionTitle}>My Digital Designs</Text>
+                <View style={styles.designsGrid}>
+                  {authoredDesigns.map((design) => (
+                    <View
+                      key={`${design.sourceCollection}:${design.sourceDocId}`}
+                      style={styles.cardColumn}
+                    >
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.designCardPressable,
+                          pressed ? styles.garmentCardPressed : null,
+                        ]}
+                        onPress={() => {
+                          router.push({
+                            pathname: "/digital-design/[designId]",
+                            params: {
+                              designId: design.sourceDocId,
+                              collection: design.sourceCollection,
+                              documentId: design.documentId,
+                              name: design.name,
+                              description: design.description,
+                              updatedAt: design.updatedAt,
+                              thumbnailUrl: design.thumbnailUrl ?? "",
+                              fullImageUrl: design.fullImageUrl ?? "",
+                            },
+                          });
+                        }}
+                      >
+                        <DigitalDesignCard design={design} />
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
+            {ownedGarments.length > 0 ? (
+              <Text style={styles.sectionTitle}>Garments</Text>
+            ) : null}
+          </View>
         }
         refreshControl={
           <RefreshControl
@@ -361,9 +449,15 @@ export default function WardrobeScreen() {
           />
         }
         ListEmptyComponent={
-          <View style={styles.stateCard}>
-            <Text style={styles.stateMessage}>{emptyMessage}</Text>
-          </View>
+          hasAnyContent ? (
+            <View style={styles.inlineEmptyCard}>
+              <Text style={styles.stateMessage}>No garments found on your account yet.</Text>
+            </View>
+          ) : (
+            <View style={styles.stateCard}>
+              <Text style={styles.stateMessage}>{emptyMessage}</Text>
+            </View>
+          )
         }
       />
     </View>
@@ -411,6 +505,25 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingBottom: 8,
   },
+  sectionBlock: {
+    marginBottom: 8,
+  },
+  sectionTitle: {
+    color: "#F9FAFB",
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 12,
+    paddingHorizontal: 6,
+  },
+  designsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    paddingHorizontal: 6,
+  },
+  designCardPressable: {
+    borderRadius: 12,
+  },
   stateCard: {
     backgroundColor: "#1F2937",
     borderRadius: 14,
@@ -420,6 +533,16 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     width: "100%",
     maxWidth: 360,
+  },
+  inlineEmptyCard: {
+    backgroundColor: "#1F2937",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#374151",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginHorizontal: 6,
+    marginTop: 4,
   },
   stateMessage: {
     color: "#9CA3AF",

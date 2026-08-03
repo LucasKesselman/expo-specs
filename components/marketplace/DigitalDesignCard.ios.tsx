@@ -8,7 +8,8 @@ type DigitalDesignCardProps = {
 };
 
 export function DigitalDesignCard({ design }: DigitalDesignCardProps) {
-  const previewImageUrl = design.thumbnailUrl ?? design.fullImageUrl ?? design.imageUrl;
+  const previewImageUrl =
+    design.thumbnailUrl ?? design.fullImageUrl ?? design.miniImageUrl ?? design.imageUrl;
 
   return (
     <View style={styles.cardContainer}>

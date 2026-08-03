@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -20,36 +21,60 @@ import {
 import { useAuth } from "../contexts/AuthContext";
 import { functions, storage } from "../lib/firebase";
 
+const PREVIEW_PLACEHOLDER_ASSET = require("../assets/artie-assets/UIStuff/ArtieSymbolBlack.png");
+
 interface AssetSlot {
   uri: string;
   name: string;
   mimeType: string;
 }
 
-type AssetKey = "marketplaceImage" | "designAsset";
-type MarketplaceStatus = "INACTIVE" | "PUBLIC" | "PRIVATE";
+type MarketplaceStatus = "PUBLIC" | "PRIVATE";
 
-const ASSET_LABELS: Record<AssetKey, string> = {
-  marketplaceImage: "Marketplace Display Image",
-  designAsset: "Design Asset",
-};
+function isImageMimeType(mimeType: string | undefined): boolean {
+  return typeof mimeType === "string" && mimeType.toLowerCase().startsWith("image/");
+}
 
-function isImageKey(key: AssetKey): boolean {
-  return key === "marketplaceImage";
+function extensionFromFileName(name: string): string {
+  const dotIndex = name.lastIndexOf(".");
+  if (dotIndex <= 0 || dotIndex === name.length - 1) {
+    return "";
+  }
+
+  const extension = name.slice(dotIndex).toLowerCase();
+  return /^[.][a-z0-9]+$/.test(extension) ? extension : "";
+}
+
+function getPlaceholderPreviewSlot(): AssetSlot {
+  const resolved = Image.resolveAssetSource(PREVIEW_PLACEHOLDER_ASSET);
+  if (!resolved?.uri) {
+    throw new Error("Could not resolve the Artie placeholder preview image.");
+  }
+
+  return {
+    uri: resolved.uri,
+    name: "ArtieSymbolBlack.png",
+    mimeType: "image/png",
+  };
 }
 
 export default function CreateDigitalDesignScreen() {
   const router = useRouter();
   const { loading, user } = useAuth();
+  const [marketplaceStatus, setMarketplaceStatus] = useState<MarketplaceStatus>("PRIVATE");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [tagsText, setTagsText] = useState("");
   const [priceText, setPriceText] = useState("");
   const [version, setVersion] = useState("");
-  const [marketplaceStatus, setMarketplaceStatus] = useState<MarketplaceStatus>("PRIVATE");
-  const [assets, setAssets] = useState<Partial<Record<AssetKey, AssetSlot>>>({});
+  const [designAsset, setDesignAsset] = useState<AssetSlot | null>(null);
+  const [previewStill, setPreviewStill] = useState<AssetSlot | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  const isPublic = marketplaceStatus === "PUBLIC";
+  const designAssetIsImage = isImageMimeType(designAsset?.mimeType);
+  const showPreviewStillPicker = !!designAsset && !designAssetIsImage;
 
   useEffect(() => {
     if (!loading && !user) {
@@ -57,55 +82,85 @@ export default function CreateDigitalDesignScreen() {
     }
   }, [loading, user, router]);
 
-  const pickAsset = useCallback(async (key: AssetKey) => {
-    try {
-      if (isImageKey(key)) {
-        let permission = await ImagePicker.getMediaLibraryPermissionsAsync();
-        if (!permission.granted) {
-          permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        }
-        if (!permission.granted) {
-          Alert.alert(
-            "Photo Library Permission",
-            "Allow photo library access to upload marketplace and design images.",
-          );
-          return;
-        }
+  useEffect(() => {
+    if (designAssetIsImage) {
+      setPreviewStill(null);
+    }
+  }, [designAssetIsImage]);
 
-        const result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ["images"],
-          quality: 1,
-          allowsEditing: false,
-        });
-        if (result.canceled || result.assets.length === 0) return;
-        const picked = result.assets[0];
-        setAssets((prev) => ({
-          ...prev,
-          [key]: {
-            uri: picked.uri,
-            name: picked.fileName ?? `${key}-${Date.now()}`,
-            mimeType: picked.mimeType ?? "image/png",
-          },
-        }));
-      } else {
-        const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
-        if (result.canceled || result.assets.length === 0) return;
-        const picked = result.assets[0];
-        setAssets((prev) => ({
-          ...prev,
-          [key]: {
-            uri: picked.uri,
-            name: picked.name,
-            mimeType: picked.mimeType ?? "application/octet-stream",
-          },
-        }));
-      }
+  const ensurePhotoLibraryPermission = useCallback(async (): Promise<boolean> => {
+    let permission = await ImagePicker.getMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    }
+    if (!permission.granted) {
+      Alert.alert(
+        "Photo Library Permission",
+        "Allow photo library access to upload design images.",
+      );
+      return false;
+    }
+    return true;
+  }, []);
+
+  const pickDesignAssetFromPhotos = useCallback(async () => {
+    try {
+      const granted = await ensurePhotoLibraryPermission();
+      if (!granted) return;
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 1,
+        allowsEditing: false,
+      });
+      if (result.canceled || result.assets.length === 0) return;
+      const picked = result.assets[0];
+      setDesignAsset({
+        uri: picked.uri,
+        name: picked.fileName ?? `designAsset-${Date.now()}.jpg`,
+        mimeType: picked.mimeType ?? "image/jpeg",
+      });
     } catch {
-      Alert.alert("Picker Error", `Could not pick file for ${ASSET_LABELS[key]}.`);
+      Alert.alert("Picker Error", "Could not pick a photo for Design Asset.");
+    }
+  }, [ensurePhotoLibraryPermission]);
+
+  const pickDesignAssetFromFiles = useCallback(async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
+      if (result.canceled || result.assets.length === 0) return;
+      const picked = result.assets[0];
+      setDesignAsset({
+        uri: picked.uri,
+        name: picked.name,
+        mimeType: picked.mimeType ?? "application/octet-stream",
+      });
+    } catch {
+      Alert.alert("Picker Error", "Could not pick a file for Design Asset.");
     }
   }, []);
 
-  const allAssetsSelected = assets.marketplaceImage && assets.designAsset;
+  const pickPreviewStill = useCallback(async () => {
+    try {
+      const granted = await ensurePhotoLibraryPermission();
+      if (!granted) return;
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 1,
+        allowsEditing: false,
+      });
+      if (result.canceled || result.assets.length === 0) return;
+      const picked = result.assets[0];
+      setPreviewStill({
+        uri: picked.uri,
+        name: picked.fileName ?? `previewStill-${Date.now()}.jpg`,
+        mimeType: picked.mimeType ?? "image/jpeg",
+      });
+    } catch {
+      Alert.alert("Picker Error", "Could not pick a preview still.");
+    }
+  }, [ensurePhotoLibraryPermission]);
 
   const parsedPriceAmount = Number.parseInt(priceText, 10);
   const priceValid =
@@ -113,12 +168,21 @@ export default function CreateDigitalDesignScreen() {
   const formValid =
     name.trim().length > 0 &&
     description.trim().length > 0 &&
-    version.trim().length > 0 &&
-    priceValid &&
-    !!allAssetsSelected;
+    !!designAsset &&
+    (!isPublic || (version.trim().length > 0 && priceValid));
+
+  const uploadSlot = useCallback(async (slot: AssetSlot, key: string, uid: string): Promise<string> => {
+    const response = await fetch(slot.uri);
+    const blob = await response.blob();
+    // Flat staging path (same layout as physical create): _temp/{uid}/{key}{ext}
+    const storagePath = `_temp/${uid}/${key}${extensionFromFileName(slot.name)}`;
+    const fileRef = ref(storage, storagePath);
+    await uploadBytes(fileRef, blob, { contentType: slot.mimeType });
+    return storagePath;
+  }, []);
 
   const handleSubmit = useCallback(async () => {
-    if (!formValid || isSubmitting) return;
+    if (!formValid || isSubmitting || !designAsset) return;
 
     if (!user) {
       Alert.alert("Not Signed In", "Please log in from the Account tab to create a digital design.", [
@@ -133,33 +197,26 @@ export default function CreateDigitalDesignScreen() {
 
     try {
       const uid = user.uid;
-      const tempPrefix = `_temp/${uid}`;
-      const assetKeys = Object.keys(ASSET_LABELS) as AssetKey[];
-      const uploadedAssetPaths: Partial<Record<AssetKey, string>> = {};
-      const tags = tagsText
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter((tag) => tag.length > 0);
+      const tags = isPublic
+        ? tagsText
+            .split(",")
+            .map((tag) => tag.trim())
+            .filter((tag) => tag.length > 0)
+        : [];
 
-      for (const key of assetKeys) {
-        const slot = assets[key];
-        if (!slot) throw new Error(`Missing asset: ${ASSET_LABELS[key]}`);
+      setStatusMessage("Uploading Design Asset...");
+      const designAssetPath = await uploadSlot(designAsset, "designAsset", uid);
 
-        setStatusMessage(`Uploading ${ASSET_LABELS[key]}...`);
-
-        const response = await fetch(slot.uri);
-        const blob = await response.blob();
-        const safeFileName = (slot.name || `${key}-${Date.now()}`).replace(/[^a-zA-Z0-9._-]/g, "_");
-        const storagePath = `${tempPrefix}/${key}/${Date.now()}-${safeFileName}`;
-        const fileRef = ref(storage, storagePath);
-        await uploadBytes(fileRef, blob, { contentType: slot.mimeType });
-        uploadedAssetPaths[key] = storagePath;
-      }
-
-      const marketplaceImagePath = uploadedAssetPaths.marketplaceImage;
-      const designAssetPath = uploadedAssetPaths.designAsset;
-      if (!marketplaceImagePath || !designAssetPath) {
-        throw new Error("Missing staged upload paths. Please re-select files and try again.");
+      let previewImagePath: string;
+      if (designAssetIsImage) {
+        setStatusMessage("Uploading listing preview...");
+        previewImagePath = await uploadSlot(designAsset, "previewImage", uid);
+      } else if (previewStill) {
+        setStatusMessage("Uploading Preview Still...");
+        previewImagePath = await uploadSlot(previewStill, "previewImage", uid);
+      } else {
+        setStatusMessage("Uploading placeholder preview...");
+        previewImagePath = await uploadSlot(getPlaceholderPreviewSlot(), "previewImage", uid);
       }
 
       setStatusMessage("Creating DigitalDesigns record...");
@@ -171,7 +228,7 @@ export default function CreateDigitalDesignScreen() {
           priceAmount: number;
           marketplaceStatus: MarketplaceStatus;
           version: string;
-          marketplaceImagePath: string;
+          previewImagePath: string;
           designAssetPath: string;
         },
         { designId: string }
@@ -181,22 +238,23 @@ export default function CreateDigitalDesignScreen() {
         name: name.trim(),
         description: description.trim(),
         tags,
-        priceAmount: parsedPriceAmount,
+        priceAmount: isPublic ? parsedPriceAmount : 0,
         marketplaceStatus,
-        version: version.trim(),
-        marketplaceImagePath,
+        version: isPublic ? version.trim() : "",
+        previewImagePath,
         designAssetPath,
       });
 
       setStatusMessage(null);
       Alert.alert("Digital Design Created", `Design ID: ${result.data.designId}`);
+      setMarketplaceStatus("PRIVATE");
       setName("");
       setDescription("");
       setTagsText("");
       setPriceText("");
       setVersion("");
-      setMarketplaceStatus("PRIVATE");
-      setAssets({});
+      setDesignAsset(null);
+      setPreviewStill(null);
     } catch (error) {
       setStatusMessage(null);
       const message = error instanceof Error ? error.message : "An unexpected error occurred.";
@@ -207,15 +265,19 @@ export default function CreateDigitalDesignScreen() {
   }, [
     formValid,
     isSubmitting,
-    assets,
+    designAsset,
+    user,
+    router,
+    isPublic,
     tagsText,
+    uploadSlot,
+    designAssetIsImage,
+    previewStill,
     name,
     description,
     parsedPriceAmount,
     marketplaceStatus,
     version,
-    user,
-    router,
   ]);
 
   if (loading || !user) {
@@ -239,63 +301,9 @@ export default function CreateDigitalDesignScreen() {
       >
         <Text style={styles.sectionTitle}>Design Details</Text>
 
-        <Text style={styles.label}>Name *</Text>
-        <TextInput
-          style={styles.input}
-          value={name}
-          onChangeText={setName}
-          placeholder="e.g. Summer Bloom v2"
-          placeholderTextColor="#6B7280"
-          editable={!isSubmitting}
-        />
-
-        <Text style={styles.label}>Description *</Text>
-        <TextInput
-          style={[styles.input, styles.multilineInput]}
-          value={description}
-          onChangeText={setDescription}
-          placeholder="Describe the digital design for marketplace listing"
-          placeholderTextColor="#6B7280"
-          editable={!isSubmitting}
-          multiline
-          textAlignVertical="top"
-        />
-
-        <Text style={styles.label}>Version *</Text>
-        <TextInput
-          style={styles.input}
-          value={version}
-          onChangeText={setVersion}
-          placeholder="e.g. RT.2504.1"
-          placeholderTextColor="#6B7280"
-          editable={!isSubmitting}
-        />
-
-        <Text style={styles.label}>Tags (comma-separated)</Text>
-        <TextInput
-          style={styles.input}
-          value={tagsText}
-          onChangeText={setTagsText}
-          placeholder="e.g. floral, summer, limited"
-          placeholderTextColor="#6B7280"
-          editable={!isSubmitting}
-        />
-
-        <Text style={styles.label}>Price (USD) *</Text>
-        <TextInput
-          style={styles.input}
-          value={priceText}
-          onChangeText={setPriceText}
-          placeholder="e.g. 2999"
-          placeholderTextColor="#6B7280"
-          keyboardType="number-pad"
-          editable={!isSubmitting}
-        />
-        <Text style={styles.helpText}>Enter price in whole cents (e.g. 2999¢ = $29.99).</Text>
-
-        <Text style={styles.label}>Initial Marketplace Status *</Text>
+        <Text style={styles.label}>Marketplace Status *</Text>
         <View style={styles.statusChoiceRow}>
-          {(["INACTIVE", "PRIVATE", "PUBLIC"] as MarketplaceStatus[]).map((statusOption) => {
+          {(["PUBLIC", "PRIVATE"] as MarketplaceStatus[]).map((statusOption) => {
             const selected = statusOption === marketplaceStatus;
             return (
               <Pressable
@@ -317,35 +325,123 @@ export default function CreateDigitalDesignScreen() {
         </View>
         <Text style={styles.helpText}>
           Sets the initial <Text style={styles.inlineCode}>marketplaceStatus</Text> value on the
-          DigitalDesigns document.
+          DigitalDesigns document. PUBLIC listings appear in the marketplace; PRIVATE designs appear
+          only in your wardrobe.
         </Text>
+
+        <Text style={styles.label}>Name *</Text>
+        <TextInput
+          style={styles.input}
+          value={name}
+          onChangeText={setName}
+          placeholder="e.g. Summer Bloom v2"
+          placeholderTextColor="#6B7280"
+          editable={!isSubmitting}
+        />
+
+        <Text style={styles.label}>Description *</Text>
+        <TextInput
+          style={[styles.input, styles.multilineInput]}
+          value={description}
+          onChangeText={setDescription}
+          placeholder="Describe the digital design"
+          placeholderTextColor="#6B7280"
+          editable={!isSubmitting}
+          multiline
+          textAlignVertical="top"
+        />
+
+        {isPublic ? (
+          <>
+            <Text style={styles.label}>Version *</Text>
+            <TextInput
+              style={styles.input}
+              value={version}
+              onChangeText={setVersion}
+              placeholder="e.g. RT.2504.1"
+              placeholderTextColor="#6B7280"
+              editable={!isSubmitting}
+            />
+
+            <Text style={styles.label}>Tags (comma-separated)</Text>
+            <TextInput
+              style={styles.input}
+              value={tagsText}
+              onChangeText={setTagsText}
+              placeholder="e.g. floral, summer, limited"
+              placeholderTextColor="#6B7280"
+              editable={!isSubmitting}
+            />
+
+            <Text style={styles.label}>Price (USD) *</Text>
+            <TextInput
+              style={styles.input}
+              value={priceText}
+              onChangeText={setPriceText}
+              placeholder="e.g. 2999"
+              placeholderTextColor="#6B7280"
+              keyboardType="number-pad"
+              editable={!isSubmitting}
+            />
+            <Text style={styles.helpText}>Enter price in whole cents (e.g. 2999¢ = $29.99).</Text>
+          </>
+        ) : null}
 
         <Text style={[styles.sectionTitle, styles.assetsSectionTitle]}>Assets</Text>
 
-        {(Object.keys(ASSET_LABELS) as AssetKey[]).map((key) => (
-          <View key={key} style={styles.assetBlock}>
+        <View style={styles.assetBlock}>
+          <View style={styles.assetRow}>
+            <View style={styles.assetInfo}>
+              <Text style={styles.assetLabel}>Design Asset *</Text>
+              <Text style={styles.assetStatus} numberOfLines={1}>
+                {designAsset?.name ?? "Not selected"}
+              </Text>
+            </View>
+            <View style={styles.assetButtonColumn}>
+              <Pressable
+                style={({ pressed }) => [styles.pickButton, pressed && styles.pickButtonPressed]}
+                onPress={pickDesignAssetFromPhotos}
+                disabled={isSubmitting}
+              >
+                <Text style={styles.pickButtonText}>Photos</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.pickButton, pressed && styles.pickButtonPressed]}
+                onPress={pickDesignAssetFromFiles}
+                disabled={isSubmitting}
+              >
+                <Text style={styles.pickButtonText}>Files</Text>
+              </Pressable>
+            </View>
+          </View>
+          <Text style={styles.helpText}>
+            Photos opens your photo library. Files opens the document picker (e.g. .gltf).
+          </Text>
+        </View>
+
+        {showPreviewStillPicker ? (
+          <View style={styles.assetBlock}>
             <View style={styles.assetRow}>
               <View style={styles.assetInfo}>
-                <Text style={styles.assetLabel}>{ASSET_LABELS[key]}</Text>
+                <Text style={styles.assetLabel}>Preview Still</Text>
                 <Text style={styles.assetStatus} numberOfLines={1}>
-                  {assets[key]?.name ?? "Not selected"}
+                  {previewStill?.name ?? "Not selected"}
                 </Text>
               </View>
               <Pressable
                 style={({ pressed }) => [styles.pickButton, pressed && styles.pickButtonPressed]}
-                onPress={() => pickAsset(key)}
+                onPress={pickPreviewStill}
                 disabled={isSubmitting}
               >
-                <Text style={styles.pickButtonText}>{assets[key] ? "Change" : "Select"}</Text>
+                <Text style={styles.pickButtonText}>{previewStill ? "Change" : "Select"}</Text>
               </Pressable>
             </View>
             <Text style={styles.helpText}>
-              {key === "marketplaceImage"
-                ? "Select an image from your photo library."
-                : "Any file can be selected and uploaded (e.g. .gltf from Files/Downloads)."}
+              Optional. Used to generate marketplace card, mini, and thumbnail images. If no preview
+              still is selected, the Artie symbol placeholder image will be used instead.
             </Text>
           </View>
-        ))}
+        ) : null}
 
         {statusMessage ? (
           <View style={styles.statusRow}>
@@ -493,11 +589,15 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginTop: 2,
   },
+  assetButtonColumn: {
+    gap: 8,
+  },
   pickButton: {
     backgroundColor: "#374151",
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 8,
+    alignItems: "center",
   },
   pickButtonPressed: {
     opacity: 0.7,
@@ -518,13 +618,6 @@ const styles = StyleSheet.create({
     color: "#93C5FD",
     fontSize: 14,
     fontWeight: "600",
-  },
-  validationText: {
-    color: "#FCA5A5",
-    fontSize: 12,
-    fontWeight: "600",
-    marginTop: -2,
-    marginBottom: 8,
   },
   submitButton: {
     marginTop: 24,

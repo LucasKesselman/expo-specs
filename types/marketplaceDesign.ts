@@ -13,6 +13,8 @@ export interface MarketplaceDesign {
   fullImageUrl: string | null;
   imageUrl: string | null;
   createdAt: string;
+  marketplaceStatus: string | null;
+  author: string | null;
 }
 
 function formatPrice(value: unknown): string {
@@ -102,5 +104,7 @@ export function mapFirestoreDocToMarketplaceDesign(
     fullImageUrl,
     imageUrl: fullImageUrl,
     createdAt: formatCreatedAt(data.createdAt),
+    marketplaceStatus: firstValidString([data.marketplaceStatus]),
+    author: firstValidString([data.author]),
   };
 }

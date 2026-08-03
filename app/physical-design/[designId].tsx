@@ -55,6 +55,8 @@ function getInitialDesignFromParams(params: ReturnType<typeof useLocalSearchPara
     fullImageUrl: fullImageUrl || null,
     imageUrl: fullImageUrl || thumbnailUrl || null,
     createdAt: "N/A",
+    marketplaceStatus: null,
+    author: null,
   };
 }
 

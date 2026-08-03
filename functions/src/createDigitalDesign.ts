@@ -8,7 +8,7 @@ const DIGITAL_DESIGNS_COLLECTION = "DigitalDesigns";
 const MARKETPLACE_ASSETS_BUCKET = "marketplace-assets-bucket";
 const AR_ASSETS_BUCKET = "ar-assets-bucket";
 
-type MarketplaceStatus = "INACTIVE" | "PUBLIC" | "PRIVATE";
+type MarketplaceStatus = "PUBLIC" | "PRIVATE";
 
 interface CreateDigitalDesignRequest {
   name: unknown;
@@ -17,7 +17,7 @@ interface CreateDigitalDesignRequest {
   priceAmount: unknown;
   marketplaceStatus: unknown;
   version: unknown;
-  marketplaceImagePath: unknown;
+  previewImagePath: unknown;
   designAssetPath: unknown;
 }
 
@@ -32,6 +32,20 @@ function normalizeRequiredString(value: unknown, fieldName: string): string {
   }
 
   return normalized;
+}
+
+function normalizeOptionalVersion(value: unknown, marketplaceStatus: MarketplaceStatus): string {
+  if (marketplaceStatus === "PRIVATE") {
+    if (value === undefined || value === null) {
+      return "";
+    }
+    if (typeof value !== "string") {
+      throw new HttpsError("invalid-argument", "version must be a string.");
+    }
+    return value.trim();
+  }
+
+  return normalizeRequiredString(value, "version");
 }
 
 function normalizeTags(value: unknown): string[] {
@@ -66,11 +80,8 @@ function normalizePriceAmount(value: unknown): number {
 }
 
 function normalizeMarketplaceStatus(value: unknown): MarketplaceStatus {
-  if (value !== "INACTIVE" && value !== "PUBLIC" && value !== "PRIVATE") {
-    throw new HttpsError(
-      "invalid-argument",
-      "marketplaceStatus must be INACTIVE, PUBLIC, or PRIVATE.",
-    );
+  if (value !== "PUBLIC" && value !== "PRIVATE") {
+    throw new HttpsError("invalid-argument", "marketplaceStatus must be PUBLIC or PRIVATE.");
   }
 
   return value;
@@ -143,13 +154,17 @@ export const createDigitalDesign = onCall({ region: REGION }, async (request) =>
   const requestData = request.data as CreateDigitalDesignRequest;
   const name = normalizeRequiredString(requestData.name, "name");
   const description = normalizeRequiredString(requestData.description, "description");
-  const tags = normalizeTags(requestData.tags);
-  const priceAmount = normalizePriceAmount(requestData.priceAmount);
   const marketplaceStatus = normalizeMarketplaceStatus(requestData.marketplaceStatus);
-  const version = normalizeRequiredString(requestData.version, "version");
-  const marketplaceImagePath = normalizeStagedAssetPath(
-    requestData.marketplaceImagePath,
-    "marketplaceImagePath",
+  const tags =
+    marketplaceStatus === "PRIVATE" ? normalizeTags(requestData.tags ?? []) : normalizeTags(requestData.tags);
+  const priceAmount =
+    marketplaceStatus === "PRIVATE"
+      ? normalizePriceAmount(requestData.priceAmount ?? 0)
+      : normalizePriceAmount(requestData.priceAmount);
+  const version = normalizeOptionalVersion(requestData.version, marketplaceStatus);
+  const previewImagePath = normalizeStagedAssetPath(
+    requestData.previewImagePath,
+    "previewImagePath",
     uid,
   );
   const designAssetPath = normalizeStagedAssetPath(requestData.designAssetPath, "designAssetPath", uid);
@@ -198,10 +213,10 @@ export const createDigitalDesign = onCall({ region: REGION }, async (request) =>
     cleanupFiles.push(arAssetsFolderPlaceholder);
 
     const stagingBucket = admin.storage().bucket();
-    const originalSource = stagingBucket.file(marketplaceImagePath);
+    const originalSource = stagingBucket.file(previewImagePath);
     const designAssetSource = stagingBucket.file(designAssetPath);
 
-    await assertSourceObjectExists(originalSource, "marketplaceImagePath");
+    await assertSourceObjectExists(originalSource, "previewImagePath");
     await assertSourceObjectExists(designAssetSource, "designAssetPath");
 
     const marketplaceBucket = admin.storage().bucket(MARKETPLACE_ASSETS_BUCKET);
@@ -209,7 +224,7 @@ export const createDigitalDesign = onCall({ region: REGION }, async (request) =>
 
     const originalDestination = marketplaceBucket.file(
       `${DIGITAL_DESIGNS_COLLECTION}/${designId}/Original/original${extensionFromPath(
-        marketplaceImagePath,
+        previewImagePath,
       )}`,
     );
     await originalSource.copy(originalDestination);
@@ -226,7 +241,7 @@ export const createDigitalDesign = onCall({ region: REGION }, async (request) =>
     logger.info("Created digital design and promoted staged assets", {
       uid,
       designId,
-      marketplaceImagePath,
+      previewImagePath,
       designAssetPath,
     });
 
