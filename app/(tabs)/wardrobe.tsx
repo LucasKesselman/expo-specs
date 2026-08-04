@@ -1,4 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
 import { collection, doc, getDoc, onSnapshot, query, where } from "firebase/firestore";
 import { useCallback, useEffect, useState } from "react";
@@ -288,9 +289,11 @@ export default function WardrobeScreen() {
     [user],
   );
 
-  useEffect(() => {
-    void loadOwnedGarments();
-  }, [loadOwnedGarments]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadOwnedGarments();
+    }, [loadOwnedGarments]),
+  );
 
   const hasAnyContent = authoredDesigns.length > 0 || ownedGarments.length > 0;
   const emptyMessage = !user

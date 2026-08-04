@@ -75,6 +75,17 @@ export default function RootLayoutIOS() {
               presentation: "card",
             }}
           />
+          <Stack.Screen
+            name="link-garment"
+            options={{
+              headerShown: true,
+              title: "Link Garment",
+              headerStyle: { backgroundColor: "#111827" },
+              headerTintColor: "#E5E7EB",
+              headerTitleStyle: { fontWeight: "700" },
+              presentation: "card",
+            }}
+          />
         </Stack>
       </SelectedDigitalDesignProvider>
     </AuthProvider>

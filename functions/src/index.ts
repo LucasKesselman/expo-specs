@@ -5,3 +5,4 @@ export { processMarketplaceAssetDisplayImage } from "./processMarketplaceAssetDi
 export { createPhysicalDesign } from "./createPhysicalDesign";
 export { createDigitalDesign } from "./createDigitalDesign";
 export { createGarment } from "./createGarment";
+export { linkGarment } from "./linkGarment";

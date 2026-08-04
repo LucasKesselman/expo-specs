@@ -56,6 +56,15 @@ export default function AccountTabScreen() {
     router.push("/create-digital-design");
   };
 
+  const handleLinkGarment = () => {
+    if (!user) {
+      router.push("/(auth)/landing");
+      return;
+    }
+
+    router.push("/link-garment");
+  };
+
   const handleSignOut = async () => {
     if (isSigningOut) return;
 
@@ -125,7 +134,33 @@ export default function AccountTabScreen() {
         </View>
       )}
 
-      <Text style={styles.sectionHeader}>Admin Tools</Text>
+      <Text style={styles.sectionHeader}>Garments</Text>
+      {user ? (
+        <Pressable
+          style={({ pressed }) => [
+            styles.actionCard,
+            pressed && styles.actionCardPressed,
+          ]}
+          onPress={handleLinkGarment}
+        >
+          <View style={styles.actionCardIcon}>
+            <Ionicons name="qr-code-outline" size={28} color="#93C5FD" />
+          </View>
+          <View style={styles.actionCardContent}>
+            <Text style={styles.actionCardTitle}>Link Garment</Text>
+            <Text style={styles.actionCardSubtitle}>
+              Scan a garment QR code to claim ownership
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#6B7280" />
+        </Pressable>
+      ) : (
+        <Text style={styles.adminToolsGuestMessage}>
+          Sign in to link a garment to your account.
+        </Text>
+      )}
+
+      <Text style={[styles.sectionHeader, styles.sectionHeaderSpacing]}>Admin Tools</Text>
       {user ? (
         <>
           <Pressable
@@ -291,6 +326,9 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     marginTop: 4,
     marginBottom: 8,
+  },
+  sectionHeaderSpacing: {
+    marginTop: 18,
   },
   actionCard: {
     flexDirection: "row",

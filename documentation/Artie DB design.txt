@@ -107,7 +107,7 @@
 		physicalDesign: reference to PhysicalDesign document
 		printStatus:"NOT_PRINTED"|"PRINTING"|"PRINTED" ...etc
 		printedAt: timestamp which is updated when a print order is generated
-		shippedStatus: "ORDERED"|"INVENTORY"|"LABEL_GENERATED"|"SHIPPED"
+		shippedStatus: "ORDERED"|"INVENTORY"|"LABEL_GENERATED"|"SHIPPED"|"OWNED"
 		shippedUpdate: timestamp updated upon each shipping status change
 		size: "XS"|"S"|"M"|"L"|"XL"
 		color: color of the garment blank fabric from manufacture
