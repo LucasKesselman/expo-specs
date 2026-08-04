@@ -1,4 +1,4 @@
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -23,6 +23,7 @@ const QR_SCAN_THROTTLE_MS = 2000;
 type CameraPhase = "scan" | "resolving" | "ar" | "error";
 
 export default function CameraTabScreen() {
+  const isFocused = useIsFocused();
   const { selectDesign } = useSelectedDigitalDesign();
   const [permission, requestPermission] = useCameraPermissions();
   const [phase, setPhase] = useState<CameraPhase>("scan");
@@ -34,20 +35,9 @@ export default function CameraTabScreen() {
   const lastScanAtRef = useRef(0);
   const lastGarmentIdRef = useRef<string | null>(null);
   const isHandlingScanRef = useRef(false);
+  const isFocusedRef = useRef(isFocused);
 
-  useFocusEffect(
-    useCallback(() => {
-      setSceneInstanceKey((previous) => previous + 1);
-    }, []),
-  );
-
-  useEffect(() => {
-    if (permission && !permission.granted && permission.canAskAgain) {
-      void requestPermission();
-    }
-  }, [permission, requestPermission]);
-
-  const handleRescan = useCallback(() => {
+  const resetToScan = useCallback(() => {
     lastGarmentIdRef.current = null;
     lastScanAtRef.current = 0;
     isHandlingScanRef.current = false;
@@ -57,9 +47,38 @@ export default function CameraTabScreen() {
     setPhase("scan");
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      isFocusedRef.current = true;
+      setSceneInstanceKey((previous) => previous + 1);
+
+      return () => {
+        isFocusedRef.current = false;
+        resetToScan();
+      };
+    }, [resetToScan]),
+  );
+
+  useEffect(() => {
+    isFocusedRef.current = isFocused;
+  }, [isFocused]);
+
+  useEffect(() => {
+    if (!isFocused) {
+      return;
+    }
+    if (permission && !permission.granted && permission.canAskAgain) {
+      void requestPermission();
+    }
+  }, [isFocused, permission, requestPermission]);
+
+  const handleRescan = useCallback(() => {
+    resetToScan();
+  }, [resetToScan]);
+
   const handleBarcodeScanned = useCallback(
     async (result: BarcodeScanningResult) => {
-      if (phase !== "scan" || isHandlingScanRef.current) {
+      if (!isFocusedRef.current || phase !== "scan" || isHandlingScanRef.current) {
         return;
       }
 
@@ -86,6 +105,9 @@ export default function CameraTabScreen() {
 
       try {
         const garmentResult = await loadGarmentAndDigitalDesign(garmentId);
+        if (!isFocusedRef.current) {
+          return;
+        }
         if (!garmentResult.ok) {
           setErrorMessage(garmentResult.error);
           setStatusText(garmentResult.error);
@@ -94,15 +116,24 @@ export default function CameraTabScreen() {
         }
 
         await selectDesign(garmentResult.design);
+        if (!isFocusedRef.current) {
+          return;
+        }
         lastGarmentIdRef.current = garmentId;
         setStatusText(`Loading AR asset for ${garmentResult.design.name}...`);
 
         const assetUrl = await resolveDesignAssetUrl(garmentResult.design.sourceDocId);
+        if (!isFocusedRef.current) {
+          return;
+        }
         setDesignAssetUri(assetUrl);
         setSceneInstanceKey((previous) => previous + 1);
         setStatusText("AR ready.");
         setPhase("ar");
       } catch (error) {
+        if (!isFocusedRef.current) {
+          return;
+        }
         const message =
           error instanceof Error ? error.message : "Failed to resolve design asset.";
         setErrorMessage(message);
@@ -121,6 +152,10 @@ export default function CameraTabScreen() {
         <Text style={styles.title}>Camera requires iOS or Android.</Text>
       </View>
     );
+  }
+
+  if (!isFocused) {
+    return <View style={styles.container} />;
   }
 
   if (!permission) {
