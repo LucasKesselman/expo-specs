@@ -35,6 +35,8 @@ type GarmentCardData = {
   garmentPath: string | null;
   size: string;
   color: string;
+  version: string;
+  verificationStatus: string;
   printStatus: string;
   qrCodeStatus: string;
   physicalDesignId: string | null;
@@ -241,6 +243,8 @@ export default function WardrobeScreen() {
               garmentPath: null,
               size: "Unknown",
               color: "Unknown",
+              version: "N/A",
+              verificationStatus: "Unknown",
               printStatus: "Unavailable",
               qrCodeStatus: "Unavailable",
               physicalDesignId: null,
@@ -259,6 +263,14 @@ export default function WardrobeScreen() {
             color:
               typeof garmentData.color === "string"
                 ? garmentData.color
+                : "Unknown",
+            version:
+              typeof garmentData.version === "string" && garmentData.version.trim()
+                ? garmentData.version
+                : "N/A",
+            verificationStatus:
+              typeof garmentData.verificationStatus === "string"
+                ? garmentData.verificationStatus
                 : "Unknown",
             printStatus:
               typeof garmentData.printStatus === "string"
@@ -332,6 +344,8 @@ export default function WardrobeScreen() {
                     garmentPath: item.garmentPath ?? "",
                     size: item.size,
                     color: item.color,
+                    version: item.version,
+                    verificationStatus: item.verificationStatus,
                     printStatus: item.printStatus,
                     qrCodeStatus: item.qrCodeStatus,
                     physicalDesignId: item.physicalDesignId ?? "",
@@ -420,6 +434,7 @@ export default function WardrobeScreen() {
                               documentId: design.documentId,
                               name: design.name,
                               description: design.description,
+                              authorFullName: design.authorFullName ?? "",
                               updatedAt: design.updatedAt,
                               thumbnailUrl: design.thumbnailUrl ?? "",
                               fullImageUrl: design.fullImageUrl ?? "",

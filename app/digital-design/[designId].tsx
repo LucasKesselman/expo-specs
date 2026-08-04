@@ -57,6 +57,7 @@ function getInitialDesignFromParams(params: ReturnType<typeof useLocalSearchPara
     createdAt: "N/A",
     marketplaceStatus: null,
     author: null,
+    authorFullName: getParamAsString(params.authorFullName) || null,
   };
 }
 
@@ -216,16 +217,22 @@ export default function DigitalDesignDetailScreen() {
       </Pressable>
 
       <View style={styles.metaContainer}>
-        <Text style={styles.metaLabel}>Document ID</Text>
-        <Text style={styles.metaValue}>{design?.documentId ?? designId}</Text>
+        <Text style={styles.metaLabel}>Name</Text>
+        <Text style={styles.metaValue}>{design?.name ?? "Untitled design"}</Text>
+      </View>
+      <View style={styles.metaContainer}>
+        <Text style={styles.metaLabel}>Author's Name</Text>
+        <Text style={styles.metaValue}>{design?.authorFullName ?? "N/A"}</Text>
+      </View>
+      <View style={styles.metaContainer}>
+        <Text style={styles.metaLabel}>Description</Text>
+        <Text style={styles.metaValue}>
+          {design?.description ?? "No description provided."}
+        </Text>
       </View>
       <View style={styles.metaContainer}>
         <Text style={styles.metaLabel}>Last Updated</Text>
         <Text style={styles.metaValue}>{design?.updatedAt ?? "N/A"}</Text>
-      </View>
-      <View style={styles.metaContainer}>
-        <Text style={styles.metaLabel}>Price</Text>
-        <Text style={styles.metaValue}>{design?.price ?? "N/A"}</Text>
       </View>
 
       {isHydrating ? (

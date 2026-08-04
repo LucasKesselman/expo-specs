@@ -38,15 +38,6 @@ export default function AccountTabScreen() {
     );
   }, [insets.bottom]);
 
-  const handleCreatePhysicalDesign = () => {
-    if (!user) {
-      router.push("/(auth)/landing");
-      return;
-    }
-
-    router.push("/create-physical-design");
-  };
-
   const handleCreateDigitalDesign = () => {
     if (!user) {
       router.push("/(auth)/landing");
@@ -162,46 +153,24 @@ export default function AccountTabScreen() {
 
       <Text style={[styles.sectionHeader, styles.sectionHeaderSpacing]}>Admin Tools</Text>
       {user ? (
-        <>
-          <Pressable
-            style={({ pressed }) => [
-              styles.actionCard,
-              pressed && styles.actionCardPressed,
-            ]}
-            onPress={handleCreateDigitalDesign}
-          >
-            <View style={styles.actionCardIcon}>
-              <Ionicons name="albums-outline" size={28} color="#93C5FD" />
-            </View>
-            <View style={styles.actionCardContent}>
-              <Text style={styles.actionCardTitle}>Create Digital Design</Text>
-              <Text style={styles.actionCardSubtitle}>
-                Upload files and publish a new digital design
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#6B7280" />
-          </Pressable>
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.actionCard,
-              styles.actionCardSpacing,
-              pressed && styles.actionCardPressed,
-            ]}
-            onPress={handleCreatePhysicalDesign}
-          >
-            <View style={styles.actionCardIcon}>
-              <Ionicons name="add-circle-outline" size={28} color="#93C5FD" />
-            </View>
-            <View style={styles.actionCardContent}>
-              <Text style={styles.actionCardTitle}>Create Physical Design</Text>
-              <Text style={styles.actionCardSubtitle}>
-                Upload assets and publish a new physical design
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#6B7280" />
-          </Pressable>
-        </>
+        <Pressable
+          style={({ pressed }) => [
+            styles.actionCard,
+            pressed && styles.actionCardPressed,
+          ]}
+          onPress={handleCreateDigitalDesign}
+        >
+          <View style={styles.actionCardIcon}>
+            <Ionicons name="albums-outline" size={28} color="#93C5FD" />
+          </View>
+          <View style={styles.actionCardContent}>
+            <Text style={styles.actionCardTitle}>Create Digital Design</Text>
+            <Text style={styles.actionCardSubtitle}>
+              Upload files and publish a new digital design
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#6B7280" />
+        </Pressable>
       ) : (
         <Text style={styles.adminToolsGuestMessage}>
           Sign in to save and create your own designs!

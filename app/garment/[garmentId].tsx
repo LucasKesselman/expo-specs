@@ -1,4 +1,5 @@
 import { useLocalSearchParams } from "expo-router";
+import { Image } from "expo-image";
 import { collection, doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -17,17 +18,20 @@ import { firestore } from "../../lib/firebase";
 const GARMENTS_COLLECTION = "Garments";
 const USERS_COLLECTION = "Users";
 const DIGITAL_DESIGNS_COLLECTION = "DigitalDesigns";
+const PHYSICAL_DESIGNS_COLLECTION = "PhysicalDesigns";
 
 type GarmentDetails = {
   id: string;
   garmentPath: string;
   size: string;
   color: string;
-  printStatus: string;
-  qrCodeStatus: string;
+  version: string;
+  verificationStatus: string;
   physicalDesignId: string | null;
+  physicalDesignPath: string | null;
   digitalDesignId: string | null;
   digitalDesignPath: string | null;
+  physicalDesignImageUrl: string | null;
 };
 
 type SavedDigitalDesignOption = {
@@ -127,6 +131,15 @@ function normalizeSavedDigitalDesignReference(
   return null;
 }
 
+function firstValidImageUrl(candidates: unknown[]): string | null {
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
 function mapSnapshotToGarmentDetails(
   garmentId: string,
   garmentPath: string,
@@ -134,21 +147,28 @@ function mapSnapshotToGarmentDetails(
 ): GarmentDetails {
   const digitalDesignPath = normalizeLinkedDocumentPath(data.digitalDesign);
   const digitalDesignId = normalizeLinkedDocumentId(data.digitalDesign);
+  const physicalDesignPath = normalizeLinkedDocumentPath(data.physicalDesign);
+  const physicalDesignId = normalizeLinkedDocumentId(data.physicalDesign);
 
   return {
     id: garmentId,
     garmentPath,
     size: typeof data.size === "string" ? data.size : "Unknown",
     color: typeof data.color === "string" ? data.color : "Unknown",
-    printStatus:
-      typeof data.printStatus === "string" ? data.printStatus : "Unavailable",
-    qrCodeStatus:
-      typeof data.qrCodeStatus === "string" ? data.qrCodeStatus : "Unavailable",
-    physicalDesignId: normalizeLinkedDocumentId(data.physicalDesign),
+    version: typeof data.version === "string" && data.version.trim() ? data.version : "N/A",
+    verificationStatus:
+      typeof data.verificationStatus === "string"
+        ? data.verificationStatus
+        : "Unknown",
+    physicalDesignId,
+    physicalDesignPath:
+      physicalDesignPath ||
+      (physicalDesignId ? `${PHYSICAL_DESIGNS_COLLECTION}/${physicalDesignId}` : null),
     digitalDesignId,
     digitalDesignPath:
       digitalDesignPath ||
       (digitalDesignId ? `${DIGITAL_DESIGNS_COLLECTION}/${digitalDesignId}` : null),
+    physicalDesignImageUrl: null,
   };
 }
 
@@ -162,17 +182,22 @@ function getInitialGarmentFromParams(
 
   const garmentPath =
     getParamAsString(params.garmentPath) || `${GARMENTS_COLLECTION}/${garmentId}`;
+  const physicalDesignId = getParamAsString(params.physicalDesignId) || null;
 
   return {
     id: garmentId,
     garmentPath,
     size: getParamAsString(params.size) || "Unknown",
     color: getParamAsString(params.color) || "Unknown",
-    printStatus: getParamAsString(params.printStatus) || "Unavailable",
-    qrCodeStatus: getParamAsString(params.qrCodeStatus) || "Unavailable",
-    physicalDesignId: getParamAsString(params.physicalDesignId) || null,
+    version: getParamAsString(params.version) || "N/A",
+    verificationStatus: getParamAsString(params.verificationStatus) || "Unknown",
+    physicalDesignId,
+    physicalDesignPath: physicalDesignId
+      ? `${PHYSICAL_DESIGNS_COLLECTION}/${physicalDesignId}`
+      : null,
     digitalDesignId: getParamAsString(params.digitalDesignId) || null,
     digitalDesignPath: getParamAsString(params.digitalDesignPath) || null,
+    physicalDesignImageUrl: null,
   };
 }
 
@@ -230,13 +255,37 @@ export default function GarmentDetailScreen() {
               continue;
             }
 
+            const mapped = mapSnapshotToGarmentDetails(
+              garmentId,
+              snapshot.ref.path,
+              snapshot.data(),
+            );
+
+            let physicalDesignImageUrl: string | null = null;
+            if (mapped.physicalDesignPath) {
+              try {
+                const physicalDesignSnapshot = await getDoc(
+                  doc(firestore, mapped.physicalDesignPath),
+                );
+                if (physicalDesignSnapshot.exists()) {
+                  const physicalDesignData = physicalDesignSnapshot.data();
+                  // Prefer marketplaceFullImageUrl; fall back to processed card/thumbnail URLs.
+                  physicalDesignImageUrl = firstValidImageUrl([
+                    physicalDesignData.marketplaceFullImageUrl,
+                    physicalDesignData.marketplaceCardImageURL,
+                    physicalDesignData.marketplaceThumbnailImageURL,
+                  ]);
+                }
+              } catch {
+                physicalDesignImageUrl = null;
+              }
+            }
+
             if (isMounted) {
-              const mapped = mapSnapshotToGarmentDetails(
-                garmentId,
-                snapshot.ref.path,
-                snapshot.data(),
-              );
-              setGarment(mapped);
+              setGarment({
+                ...mapped,
+                physicalDesignImageUrl,
+              });
             }
             return;
           } catch (error) {
@@ -436,34 +485,45 @@ export default function GarmentDetailScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <View style={styles.heroContainer}>
+        {garment?.physicalDesignImageUrl ? (
+          <Image
+            source={{ uri: garment.physicalDesignImageUrl }}
+            style={styles.heroImage}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+          />
+        ) : (
+          <View style={styles.heroFallback}>
+            <Text style={styles.heroFallbackText}>
+              {isHydrating ? "Loading image..." : "No preview image"}
+            </Text>
+          </View>
+        )}
+      </View>
+
       <Text style={styles.title}>Garment Details</Text>
       <Text style={styles.subtitle}>
         {garment?.id ?? garmentId ?? "Unknown garment"}
       </Text>
 
       <View style={styles.metaContainer}>
-        <Text style={styles.metaLabel}>Size</Text>
-        <Text style={styles.metaValue}>{garment?.size ?? "Unknown"}</Text>
+        <Text style={styles.metaLabel}>Version</Text>
+        <Text style={styles.metaValue}>{garment?.version ?? "N/A"}</Text>
+      </View>
+      <View style={styles.metaContainer}>
+        <Text style={styles.metaLabel}>Status</Text>
+        <Text style={styles.metaValue}>
+          {garment?.verificationStatus ?? "Unknown"}
+        </Text>
       </View>
       <View style={styles.metaContainer}>
         <Text style={styles.metaLabel}>Color</Text>
         <Text style={styles.metaValue}>{garment?.color ?? "Unknown"}</Text>
       </View>
       <View style={styles.metaContainer}>
-        <Text style={styles.metaLabel}>Print Status</Text>
-        <Text style={styles.metaValue}>{garment?.printStatus ?? "Unavailable"}</Text>
-      </View>
-      <View style={styles.metaContainer}>
-        <Text style={styles.metaLabel}>QR Status</Text>
-        <Text style={styles.metaValue}>{garment?.qrCodeStatus ?? "Unavailable"}</Text>
-      </View>
-      <View style={styles.metaContainer}>
-        <Text style={styles.metaLabel}>Physical Design</Text>
-        <Text style={styles.metaValue}>{garment?.physicalDesignId ?? "N/A"}</Text>
-      </View>
-      <View style={styles.metaContainer}>
-        <Text style={styles.metaLabel}>Digital Design</Text>
-        <Text style={styles.metaValue}>{garment?.digitalDesignId ?? "N/A"}</Text>
+        <Text style={styles.metaLabel}>Size</Text>
+        <Text style={styles.metaValue}>{garment?.size ?? "Unknown"}</Text>
       </View>
       {updateNotice ? <Text style={styles.successText}>{updateNotice}</Text> : null}
 
@@ -609,10 +669,35 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 48,
   },
+  heroContainer: {
+    borderRadius: 14,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#1F2937",
+    backgroundColor: "#030712",
+    marginBottom: 4,
+  },
+  heroImage: {
+    width: "100%",
+    aspectRatio: 1,
+  },
+  heroFallback: {
+    width: "100%",
+    aspectRatio: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#1F2937",
+  },
+  heroFallbackText: {
+    color: "#D1D5DB",
+    fontSize: 14,
+    fontWeight: "700",
+  },
   title: {
     color: "#F9FAFB",
     fontSize: 24,
     fontWeight: "800",
+    marginTop: 14,
   },
   subtitle: {
     color: "#CBD5E1",

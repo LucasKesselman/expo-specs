@@ -15,6 +15,7 @@ export interface MarketplaceDesign {
   createdAt: string;
   marketplaceStatus: string | null;
   author: string | null;
+  authorFullName: string | null;
 }
 
 function formatPrice(value: unknown): string {
@@ -106,5 +107,6 @@ export function mapFirestoreDocToMarketplaceDesign(
     createdAt: formatCreatedAt(data.createdAt),
     marketplaceStatus: firstValidString([data.marketplaceStatus]),
     author: firstValidString([data.author]),
+    authorFullName: firstValidString([data.authorFullName]),
   };
 }

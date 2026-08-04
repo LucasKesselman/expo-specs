@@ -204,6 +204,7 @@ export default function DigitalMarketplaceTabScreen() {
                   documentId: item.documentId,
                   name: item.name,
                   description: item.description,
+                  authorFullName: item.authorFullName ?? "",
                   updatedAt: item.updatedAt,
                   thumbnailUrl: item.thumbnailUrl ?? "",
                   fullImageUrl: item.fullImageUrl ?? "",

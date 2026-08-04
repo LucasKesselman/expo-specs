@@ -100,7 +100,11 @@ export default function PhysicalMarketplaceTabScreen() {
           loadedAtLeastOneCollection = true;
 
           for (const doc of sortedDocs) {
-            uniqueDesigns.set(`${collectionName}:${doc.id}`, mapFirestoreDocToMarketplaceDesign(doc, collectionName));
+            const design = mapFirestoreDocToMarketplaceDesign(doc, collectionName);
+            if (design.marketplaceStatus !== "PUBLIC") {
+              continue;
+            }
+            uniqueDesigns.set(`${collectionName}:${doc.id}`, design);
           }
         } catch (error) {
           const code =
