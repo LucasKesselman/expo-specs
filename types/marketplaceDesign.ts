@@ -8,6 +8,9 @@ export interface MarketplaceDesign {
   description: string;
   updatedAt: string;
   price: string;
+  priceAmount: number;
+  tags: string[];
+  version: string;
   thumbnailUrl: string | null;
   miniImageUrl: string | null;
   fullImageUrl: string | null;
@@ -32,6 +35,35 @@ function formatPrice(value: unknown): string {
   }
 
   return "N/A";
+}
+
+function normalizePriceAmount(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    return Math.trunc(value);
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      return Math.trunc(parsed);
+    }
+  }
+
+  return 0;
+}
+
+function normalizeTags(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const tags: string[] = [];
+  for (const tag of value) {
+    if (typeof tag === "string" && tag.trim()) {
+      tags.push(tag.trim());
+    }
+  }
+  return tags;
 }
 
 function formatCreatedAt(value: unknown): string {
@@ -91,6 +123,7 @@ export function mapFirestoreDocToMarketplaceDesign(
     data.marketplaceCardImageURL,
     data.marketplaceFullImageUrl,
   ]);
+  const priceAmount = normalizePriceAmount(data.priceAmount);
 
   return {
     sourceDocId: doc.id,
@@ -99,7 +132,10 @@ export function mapFirestoreDocToMarketplaceDesign(
     name: firstValidString([data.name]) ?? "Untitled design",
     description: firstValidString([data.description]) ?? "No description provided.",
     updatedAt: formatCreatedAt(data.lastUpdatedAt),
-    price: formatPrice(data.priceAmount),
+    price: formatPrice(priceAmount),
+    priceAmount,
+    tags: normalizeTags(data.tags),
+    version: firstValidString([data.version]) ?? "",
     thumbnailUrl,
     miniImageUrl,
     fullImageUrl,

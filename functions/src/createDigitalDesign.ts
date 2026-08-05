@@ -198,6 +198,11 @@ export const createDigitalDesign = onCall({ region: REGION }, async (request) =>
     version,
   });
 
+  await db.collection("Users").doc(uid).set(
+    { savedDigitalDesigns: admin.firestore.FieldValue.arrayUnion(designId) },
+    { merge: true },
+  );
+
   const cleanupFiles: File[] = [];
   try {
     const originalFolderPlaceholder = await createPlaceholderFile(

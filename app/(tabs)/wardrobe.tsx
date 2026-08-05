@@ -1,8 +1,8 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
-import { collection, doc, getDoc, onSnapshot, query, where } from "firebase/firestore";
-import { useCallback, useEffect, useState } from "react";
+import { collection, doc, getDoc } from "firebase/firestore";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DigitalDesignCard } from "../../components/marketplace/DigitalDesignCard";
 import { useAuth } from "../../contexts/AuthContext";
 import { firestore } from "../../lib/firebase";
+import { dedupeSavedDigitalDesignReferences } from "../../lib/savedDigitalDesigns";
 import {
   mapFirestoreDocToMarketplaceDesign,
   type MarketplaceDesign,
@@ -29,6 +30,8 @@ const FALLBACK_ACCESSORY_SPACING = 16;
 const USERS_COLLECTION = "Users";
 const GARMENTS_COLLECTION = "Garments";
 const DIGITAL_DESIGNS_COLLECTION = "DigitalDesigns";
+
+type DesignStatusFilter = "BOTH" | "PRIVATE" | "PUBLIC";
 
 type GarmentCardData = {
   id: string;
@@ -117,9 +120,11 @@ export default function WardrobeScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [isLoadingGarments, setIsLoadingGarments] = useState(true);
+  const [isLoadingDesigns, setIsLoadingDesigns] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [ownedGarments, setOwnedGarments] = useState<GarmentCardData[]>([]);
-  const [authoredDesigns, setAuthoredDesigns] = useState<MarketplaceDesign[]>([]);
+  const [savedDesigns, setSavedDesigns] = useState<MarketplaceDesign[]>([]);
+  const [designStatusFilter, setDesignStatusFilter] = useState<DesignStatusFilter>("BOTH");
   const [garmentsErrorMessage, setGarmentsErrorMessage] = useState<string | null>(null);
   const [designsErrorMessage, setDesignsErrorMessage] = useState<string | null>(null);
   const listTopInset = Platform.OS === "ios" ? insets.top + 16 : 16;
@@ -131,37 +136,58 @@ export default function WardrobeScreen() {
         FALLBACK_ACCESSORY_SPACING +
         insets.bottom;
 
-  useEffect(() => {
+  const loadSavedDesigns = useCallback(async () => {
     if (!user) {
-      setAuthoredDesigns([]);
+      setSavedDesigns([]);
       setDesignsErrorMessage(null);
+      setIsLoadingDesigns(false);
       return;
     }
 
+    setIsLoadingDesigns(true);
     setDesignsErrorMessage(null);
-    const designsQuery = query(
-      collection(firestore, DIGITAL_DESIGNS_COLLECTION),
-      where("author", "==", user.uid),
-    );
 
-    const unsubscribe = onSnapshot(
-      designsQuery,
-      (snapshot) => {
-        const designs = snapshot.docs
-          .map((designDoc) =>
-            mapFirestoreDocToMarketplaceDesign(designDoc, DIGITAL_DESIGNS_COLLECTION),
-          )
-          .filter((design) => design.marketplaceStatus !== "INACTIVE");
-        setAuthoredDesigns(designs);
-        setDesignsErrorMessage(null);
-      },
-      () => {
-        setAuthoredDesigns([]);
-        setDesignsErrorMessage("We couldn't load your digital designs right now.");
-      },
-    );
+    try {
+      const userSnapshot = await getDoc(doc(firestore, USERS_COLLECTION, user.uid));
+      if (!userSnapshot.exists()) {
+        setSavedDesigns([]);
+        return;
+      }
 
-    return unsubscribe;
+      const refs = dedupeSavedDigitalDesignReferences(userSnapshot.data().savedDigitalDesigns);
+      if (!refs.length) {
+        setSavedDesigns([]);
+        return;
+      }
+
+      const designSnapshots = await Promise.all(
+        refs.map(async (ref) => {
+          try {
+            const snapshot = await getDoc(doc(firestore, ref.path));
+            if (snapshot.exists()) {
+              return snapshot;
+            }
+            return getDoc(doc(collection(firestore, DIGITAL_DESIGNS_COLLECTION), ref.id));
+          } catch {
+            return null;
+          }
+        }),
+      );
+
+      const designs = designSnapshots
+        .filter((snapshot): snapshot is NonNullable<typeof snapshot> => Boolean(snapshot?.exists()))
+        .map((snapshot) =>
+          mapFirestoreDocToMarketplaceDesign(snapshot, DIGITAL_DESIGNS_COLLECTION),
+        )
+        .filter((design) => design.marketplaceStatus !== "INACTIVE");
+
+      setSavedDesigns(designs);
+    } catch {
+      setSavedDesigns([]);
+      setDesignsErrorMessage("We couldn't load your digital designs right now.");
+    } finally {
+      setIsLoadingDesigns(false);
+    }
   }, [user]);
 
   const loadOwnedGarments = useCallback(
@@ -304,24 +330,44 @@ export default function WardrobeScreen() {
   useFocusEffect(
     useCallback(() => {
       void loadOwnedGarments();
-    }, [loadOwnedGarments]),
+      void loadSavedDesigns();
+    }, [loadOwnedGarments, loadSavedDesigns]),
   );
 
-  const hasAnyContent = authoredDesigns.length > 0 || ownedGarments.length > 0;
+  const filteredSavedDesigns = useMemo(() => {
+    if (designStatusFilter === "BOTH") {
+      return savedDesigns;
+    }
+    return savedDesigns.filter((design) => design.marketplaceStatus === designStatusFilter);
+  }, [designStatusFilter, savedDesigns]);
+
+  const hasAnyContent = filteredSavedDesigns.length > 0 || ownedGarments.length > 0;
+  const isLoading = isLoadingGarments || isLoadingDesigns;
   const emptyMessage = !user
     ? "Sign in to view your wardrobe."
-    : isLoadingGarments
+    : isLoading
       ? "Loading your wardrobe..."
       : garmentsErrorMessage ??
         designsErrorMessage ??
-        "No designs or garments found on your account yet.";
+        (savedDesigns.length > 0 && filteredSavedDesigns.length === 0
+          ? "No digital designs match this filter."
+          : "No designs or garments found on your account yet.");
+
+  const refreshWardrobe = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([loadOwnedGarments(false), loadSavedDesigns()]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [loadOwnedGarments, loadSavedDesigns]);
 
   return (
     <View style={styles.screenContainer}>
       {garmentsErrorMessage && ownedGarments.length > 0 ? (
         <Text style={styles.errorText}>{garmentsErrorMessage}</Text>
       ) : null}
-      {designsErrorMessage && authoredDesigns.length > 0 ? (
+      {designsErrorMessage && savedDesigns.length > 0 ? (
         <Text style={styles.errorText}>{designsErrorMessage}</Text>
       ) : null}
       <FlatList
@@ -411,11 +457,43 @@ export default function WardrobeScreen() {
               </View>
             ) : null}
 
-            {authoredDesigns.length > 0 ? (
-              <View style={styles.sectionBlock}>
-                <Text style={styles.sectionTitle}>My Digital Designs</Text>
+            <View style={styles.sectionBlock}>
+              <Text style={styles.sectionTitle}>My Digital Designs</Text>
+              <View style={styles.filterRow}>
+                {(
+                  [
+                    { key: "BOTH", label: "All" },
+                    { key: "PUBLIC", label: "Public" },
+                    { key: "PRIVATE", label: "Private" },
+                  ] as const
+                ).map((option) => {
+                  const isActive = designStatusFilter === option.key;
+                  return (
+                    <Pressable
+                      key={option.key}
+                      onPress={() => setDesignStatusFilter(option.key)}
+                      style={({ pressed }) => [
+                        styles.filterChip,
+                        isActive ? styles.filterChipActive : null,
+                        pressed ? styles.filterChipPressed : null,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.filterChipText,
+                          isActive ? styles.filterChipTextActive : null,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {filteredSavedDesigns.length > 0 ? (
                 <View style={styles.designsGrid}>
-                  {authoredDesigns.map((design) => (
+                  {filteredSavedDesigns.map((design) => (
                     <View
                       key={`${design.sourceCollection}:${design.sourceDocId}`}
                       style={styles.cardColumn}
@@ -447,8 +525,21 @@ export default function WardrobeScreen() {
                     </View>
                   ))}
                 </View>
-              </View>
-            ) : null}
+              ) : (
+                <View style={styles.inlineEmptyCard}>
+                  <Text style={styles.stateMessage}>
+                    {!user
+                      ? "Sign in to view saved digital designs."
+                      : isLoadingDesigns
+                        ? "Loading digital designs..."
+                        : designsErrorMessage ??
+                          (savedDesigns.length > 0
+                            ? "No digital designs match this filter."
+                            : "No saved digital designs yet.")}
+                  </Text>
+                </View>
+              )}
+            </View>
 
             {ownedGarments.length > 0 ? (
               <Text style={styles.sectionTitle}>Garments</Text>
@@ -459,7 +550,7 @@ export default function WardrobeScreen() {
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={() => {
-              void loadOwnedGarments(true);
+              void refreshWardrobe();
             }}
             tintColor="#93C5FD"
             colors={["#93C5FD"]}
@@ -532,6 +623,35 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginBottom: 12,
     paddingHorizontal: 6,
+  },
+  filterRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 6,
+    marginBottom: 12,
+  },
+  filterChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#374151",
+    backgroundColor: "#111827",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  filterChipActive: {
+    borderColor: "#60A5FA",
+    backgroundColor: "#1E3A8A",
+  },
+  filterChipPressed: {
+    opacity: 0.85,
+  },
+  filterChipText: {
+    color: "#9CA3AF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  filterChipTextActive: {
+    color: "#EFF6FF",
   },
   designsGrid: {
     flexDirection: "row",

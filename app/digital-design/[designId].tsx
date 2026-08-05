@@ -1,14 +1,35 @@
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Image } from "expo-image";
-import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { collection, doc, getDoc } from "firebase/firestore";
+import { useCallback, useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import {
+  arrayRemove,
+  arrayUnion,
+  collection,
+  doc,
+  getDoc,
+  updateDoc,
+} from "firebase/firestore";
 
+import { useAuth } from "../../contexts/AuthContext";
 import { firestore } from "../../lib/firebase";
-import { useSelectedDigitalDesign } from "../../contexts/SelectedDigitalDesignContext";
+import {
+  buildSavedDigitalDesignRemoveValues,
+  isDesignInSavedList,
+} from "../../lib/savedDigitalDesigns";
 import { mapFirestoreDocToMarketplaceDesign, type MarketplaceDesign } from "../../types/marketplaceDesign";
 
 const DIGITAL_DESIGNS_COLLECTION_CANDIDATES = ["DigitalDesigns"] as const;
+const USERS_COLLECTION = "Users";
+
 type LinkAppleZoomTargetModule = {
   AppleZoomTarget?: ComponentType<{ children: ReactNode }>;
 };
@@ -25,7 +46,9 @@ function getParamAsString(param: string | string[] | undefined): string {
   return "";
 }
 
-function getInitialDesignFromParams(params: ReturnType<typeof useLocalSearchParams>): MarketplaceDesign | null {
+function getInitialDesignFromParams(
+  params: ReturnType<typeof useLocalSearchParams>,
+): MarketplaceDesign | null {
   const designId = getParamAsString(params.designId);
 
   if (!designId) {
@@ -50,6 +73,9 @@ function getInitialDesignFromParams(params: ReturnType<typeof useLocalSearchPara
     description: description || "No description provided.",
     updatedAt: updatedAt || "N/A",
     price: "N/A",
+    priceAmount: 0,
+    tags: [],
+    version: "",
     miniImageUrl: miniImageUrl || null,
     thumbnailUrl: thumbnailUrl || null,
     fullImageUrl: fullImageUrl || null,
@@ -71,15 +97,36 @@ function getAppleZoomTarget(): ComponentType<{ children: ReactNode }> | null {
 }
 
 export default function DigitalDesignDetailScreen() {
+  const router = useRouter();
   const params = useLocalSearchParams();
+  const { user } = useAuth();
   const designId = getParamAsString(params.designId);
   const initialDesign = useMemo(() => getInitialDesignFromParams(params), [params]);
   const [design, setDesign] = useState<MarketplaceDesign | null>(initialDesign);
   const [isHydrating, setIsHydrating] = useState(false);
-  const [isUpdatingSelection, setIsUpdatingSelection] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
+  const [isInWardrobe, setIsInWardrobe] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const AppleZoomTarget = useMemo(() => getAppleZoomTarget(), []);
-  const { selectedDesign, selectDesign, clearSelectedDesign } = useSelectedDigitalDesign();
+
+  const refreshSavedMembership = useCallback(async () => {
+    if (!user?.uid || !designId) {
+      setIsInWardrobe(false);
+      return;
+    }
+
+    try {
+      const userSnapshot = await getDoc(doc(firestore, USERS_COLLECTION, user.uid));
+      const savedDigitalDesigns = userSnapshot.exists()
+        ? userSnapshot.data().savedDigitalDesigns
+        : [];
+      setIsInWardrobe(isDesignInSavedList(savedDigitalDesigns, designId));
+    } catch {
+      setIsInWardrobe(false);
+    }
+  }, [designId, user?.uid]);
 
   useEffect(() => {
     if (!designId) {
@@ -95,20 +142,26 @@ export default function DigitalDesignDetailScreen() {
 
       const preferredCollection = getParamAsString(params.collection);
       const candidates = preferredCollection
-        ? [preferredCollection, ...DIGITAL_DESIGNS_COLLECTION_CANDIDATES.filter((name) => name !== preferredCollection)]
+        ? [
+            preferredCollection,
+            ...DIGITAL_DESIGNS_COLLECTION_CANDIDATES.filter(
+              (name) => name !== preferredCollection,
+            ),
+          ]
         : [...DIGITAL_DESIGNS_COLLECTION_CANDIDATES];
 
       try {
         for (const collectionName of candidates) {
           try {
-            const snapshot = await getDoc(doc(collection(firestore, collectionName), designId));
+            const snapshot = await getDoc(
+              doc(collection(firestore, collectionName), designId),
+            );
             if (!snapshot.exists()) {
               continue;
             }
 
             if (isMounted) {
-              const mapped = mapFirestoreDocToMarketplaceDesign(snapshot, collectionName);
-              setDesign(mapped);
+              setDesign(mapFirestoreDocToMarketplaceDesign(snapshot, collectionName));
             }
             return;
           } catch (error) {
@@ -126,7 +179,9 @@ export default function DigitalDesignDetailScreen() {
         }
       } catch (error) {
         if (isMounted) {
-          setErrorMessage(error instanceof Error ? error.message : "Unable to load design details.");
+          setErrorMessage(
+            error instanceof Error ? error.message : "Unable to load design details.",
+          );
         }
       } finally {
         if (isMounted) {
@@ -142,33 +197,104 @@ export default function DigitalDesignDetailScreen() {
     };
   }, [designId, params.collection]);
 
-  const displayImageUrl = design?.fullImageUrl ?? design?.thumbnailUrl ?? design?.imageUrl ?? null;
-  const isCurrentSelection =
-    !!design &&
-    selectedDesign?.sourceDocId === design.sourceDocId &&
-    selectedDesign?.sourceCollection === design.sourceCollection;
+  useEffect(() => {
+    void refreshSavedMembership();
+  }, [refreshSavedMembership]);
 
-  const selectionButtonText = isCurrentSelection ? "Unselect design" : "Select this design";
+  const displayImageUrl =
+    design?.fullImageUrl ?? design?.thumbnailUrl ?? design?.imageUrl ?? null;
+  const isPublic = design?.marketplaceStatus === "PUBLIC";
+  const priceAmount = design?.priceAmount ?? 0;
 
-  const handleSelectionPress = async () => {
-    if (!design || isUpdatingSelection) {
+  const handlePrimaryAction = async () => {
+    if (!design || !isPublic) {
       return;
     }
 
     setErrorMessage(null);
-    setIsUpdatingSelection(true);
+    setSuccessMessage(null);
+
+    if (priceAmount > 0) {
+      Alert.alert("Error", "not released. yet");
+      return;
+    }
+
+    if (!user?.uid) {
+      router.push("/(auth)/landing");
+      return;
+    }
+
+    if (isInWardrobe) {
+      setSuccessMessage("Already in wardrobe.");
+      return;
+    }
+
+    setIsSaving(true);
     try {
-      if (isCurrentSelection) {
-        await clearSelectedDesign();
-      } else {
-        await selectDesign(design);
-      }
+      await updateDoc(doc(firestore, USERS_COLLECTION, user.uid), {
+        id: user.uid,
+        savedDigitalDesigns: arrayUnion(design.sourceDocId),
+      });
+      setIsInWardrobe(true);
+      setSuccessMessage("Design saved to your wardrobe.");
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Unable to update selected design.");
+      setErrorMessage(
+        error instanceof Error ? error.message : "Unable to save design to wardrobe.",
+      );
     } finally {
-      setIsUpdatingSelection(false);
+      setIsSaving(false);
     }
   };
+
+  const handleRemoveFromWardrobe = () => {
+    if (!user?.uid || !design || !isInWardrobe) {
+      return;
+    }
+
+    const statusNote =
+      design.marketplaceStatus === "PRIVATE"
+        ? "You will need to re-upload this design to add it again."
+        : "You will need to re-purchase this design to add it again.";
+
+    Alert.alert(
+      "Remove from Wardrobe",
+      `Removing this design from your wardrobe will require either a re-upload if PRIVATE or a re-purchase if PUBLIC. ${statusNote}`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              setIsRemoving(true);
+              setErrorMessage(null);
+              setSuccessMessage(null);
+              try {
+                const removeValues = buildSavedDigitalDesignRemoveValues(design.sourceDocId);
+                await updateDoc(doc(firestore, USERS_COLLECTION, user.uid), {
+                  id: user.uid,
+                  savedDigitalDesigns: arrayRemove(...removeValues),
+                });
+                setIsInWardrobe(false);
+                setSuccessMessage("Design removed from your wardrobe.");
+              } catch (error) {
+                setErrorMessage(
+                  error instanceof Error
+                    ? error.message
+                    : "Unable to remove design from wardrobe.",
+                );
+              } finally {
+                setIsRemoving(false);
+              }
+            })();
+          },
+        },
+      ],
+    );
+  };
+
+  const primaryButtonLabel =
+    priceAmount > 0 ? "Buy Design" : isSaving ? "Saving..." : "Save Design";
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -176,7 +302,12 @@ export default function DigitalDesignDetailScreen() {
         <AppleZoomTarget>
           <View style={styles.heroContainer}>
             {displayImageUrl ? (
-              <Image source={{ uri: displayImageUrl }} style={styles.heroImage} contentFit="cover" cachePolicy="memory-disk" />
+              <Image
+                source={{ uri: displayImageUrl }}
+                style={styles.heroImage}
+                contentFit="cover"
+                cachePolicy="memory-disk"
+              />
             ) : (
               <View style={styles.heroFallback}>
                 <Text style={styles.heroFallbackText}>No preview image</Text>
@@ -187,7 +318,12 @@ export default function DigitalDesignDetailScreen() {
       ) : (
         <View style={styles.heroContainer}>
           {displayImageUrl ? (
-            <Image source={{ uri: displayImageUrl }} style={styles.heroImage} contentFit="cover" cachePolicy="memory-disk" />
+            <Image
+              source={{ uri: displayImageUrl }}
+              style={styles.heroImage}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+            />
           ) : (
             <View style={styles.heroFallback}>
               <Text style={styles.heroFallbackText}>No preview image</Text>
@@ -196,25 +332,26 @@ export default function DigitalDesignDetailScreen() {
         </View>
       )}
 
-      <Text style={styles.title}>{design?.name ?? "Untitled design"}</Text>
-      <Text style={styles.description}>{design?.description ?? "No description provided."}</Text>
+      {isPublic ? (
+        <Pressable
+          onPress={() => {
+            void handlePrimaryAction();
+          }}
+          style={({ pressed }) => [
+            styles.primaryButton,
+            pressed ? styles.primaryButtonPressed : null,
+            isSaving ? styles.primaryButtonDisabled : null,
+          ]}
+          disabled={!design || isSaving}
+        >
+          <Text style={styles.primaryButtonText}>{primaryButtonLabel}</Text>
+        </Pressable>
+      ) : null}
 
-      <Pressable
-        onPress={() => {
-          void handleSelectionPress();
-        }}
-        style={({ pressed }) => [
-          styles.selectionButton,
-          isCurrentSelection ? styles.selectionButtonSelected : null,
-          pressed ? styles.selectionButtonPressed : null,
-          isUpdatingSelection ? styles.selectionButtonDisabled : null,
-        ]}
-        disabled={!design || isUpdatingSelection}
-      >
-        <Text style={styles.selectionButtonText}>
-          {isUpdatingSelection ? "Updating selection..." : selectionButtonText}
-        </Text>
-      </Pressable>
+      <Text style={styles.title}>{design?.name ?? "Untitled design"}</Text>
+      <Text style={styles.description}>
+        {design?.description ?? "No description provided."}
+      </Text>
 
       <View style={styles.metaContainer}>
         <Text style={styles.metaLabel}>Name</Text>
@@ -235,13 +372,51 @@ export default function DigitalDesignDetailScreen() {
         <Text style={styles.metaValue}>{design?.updatedAt ?? "N/A"}</Text>
       </View>
 
+      {isPublic ? (
+        <>
+          <View style={styles.metaContainer}>
+            <Text style={styles.metaLabel}>Price</Text>
+            <Text style={styles.metaValue}>{design?.price ?? "N/A"}</Text>
+          </View>
+          <View style={styles.metaContainer}>
+            <Text style={styles.metaLabel}>Tags</Text>
+            <Text style={styles.metaValue}>
+              {design?.tags?.length ? design.tags.join(", ") : "None"}
+            </Text>
+          </View>
+          <View style={styles.metaContainer}>
+            <Text style={styles.metaLabel}>Version</Text>
+            <Text style={styles.metaValue}>
+              {design?.version?.trim() ? design.version : "N/A"}
+            </Text>
+          </View>
+        </>
+      ) : null}
+
       {isHydrating ? (
         <View style={styles.loadingRow}>
           <ActivityIndicator color="#93C5FD" />
           <Text style={styles.loadingText}>Refreshing design details...</Text>
         </View>
       ) : null}
+      {successMessage ? <Text style={styles.successText}>{successMessage}</Text> : null}
       {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+
+      {user && isInWardrobe ? (
+        <Pressable
+          onPress={handleRemoveFromWardrobe}
+          style={({ pressed }) => [
+            styles.removeButton,
+            pressed ? styles.removeButtonPressed : null,
+            isRemoving ? styles.primaryButtonDisabled : null,
+          ]}
+          disabled={isRemoving}
+        >
+          <Text style={styles.removeButtonText}>
+            {isRemoving ? "Removing..." : "Remove from Wardrobe"}
+          </Text>
+        </Pressable>
+      ) : null}
     </ScrollView>
   );
 }
@@ -278,6 +453,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
   },
+  primaryButton: {
+    marginTop: 16,
+    minHeight: 52,
+    borderRadius: 12,
+    backgroundColor: "#2563EB",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  primaryButtonPressed: {
+    opacity: 0.9,
+  },
+  primaryButtonDisabled: {
+    opacity: 0.7,
+  },
+  primaryButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "800",
+  },
   title: {
     color: "#F9FAFB",
     fontSize: 24,
@@ -290,29 +485,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginTop: 10,
     lineHeight: 22,
-  },
-  selectionButton: {
-    marginTop: 16,
-    minHeight: 52,
-    borderRadius: 12,
-    backgroundColor: "#2563EB",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 16,
-  },
-  selectionButtonSelected: {
-    backgroundColor: "#0F766E",
-  },
-  selectionButtonPressed: {
-    opacity: 0.9,
-  },
-  selectionButtonDisabled: {
-    opacity: 0.7,
-  },
-  selectionButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "800",
   },
   metaContainer: {
     marginTop: 14,
@@ -350,5 +522,28 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     marginTop: 12,
+  },
+  successText: {
+    color: "#86EFAC",
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 12,
+  },
+  removeButton: {
+    marginTop: 24,
+    minHeight: 52,
+    borderRadius: 12,
+    backgroundColor: "#DC2626",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  removeButtonPressed: {
+    opacity: 0.9,
+  },
+  removeButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "800",
   },
 });

@@ -58,6 +58,9 @@ function getInitialDesignFromParams(params: ReturnType<typeof useLocalSearchPara
     marketplaceStatus: null,
     author: null,
     authorFullName: null,
+    priceAmount: 0,
+    tags: [],
+    version: "",
   };
 }
 

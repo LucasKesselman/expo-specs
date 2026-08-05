@@ -14,6 +14,7 @@ import {
 
 import { useAuth } from "../../contexts/AuthContext";
 import { firestore } from "../../lib/firebase";
+import { normalizeSavedDigitalDesignReference } from "../../lib/savedDigitalDesigns";
 
 const GARMENTS_COLLECTION = "Garments";
 const USERS_COLLECTION = "Users";
@@ -77,54 +78,6 @@ function normalizeLinkedDocumentPath(value: unknown): string | null {
     const path = (value as { path?: unknown }).path;
     if (typeof path === "string" && path.trim()) {
       return path.trim();
-    }
-  }
-
-  return null;
-}
-
-function normalizeSavedDigitalDesignReference(
-  value: unknown,
-): { id: string; path: string } | null {
-  if (typeof value === "string" && value.trim()) {
-    const trimmed = value.trim();
-    if (trimmed.includes("/")) {
-      const segments = trimmed.split("/").filter(Boolean);
-      if (!segments.length) {
-        return null;
-      }
-      return { id: segments[segments.length - 1], path: trimmed };
-    }
-    return {
-      id: trimmed,
-      path: `${DIGITAL_DESIGNS_COLLECTION}/${trimmed}`,
-    };
-  }
-
-  if (typeof value === "object" && value !== null) {
-    const maybePath =
-      "path" in value && typeof (value as { path?: unknown }).path === "string"
-        ? (value as { path: string }).path.trim()
-        : "";
-    const maybeId =
-      "id" in value && typeof (value as { id?: unknown }).id === "string"
-        ? (value as { id: string }).id.trim()
-        : "";
-
-    if (maybePath) {
-      const segments = maybePath.split("/").filter(Boolean);
-      const id = maybeId || (segments.length ? segments[segments.length - 1] : "");
-      if (!id) {
-        return null;
-      }
-      return { id, path: maybePath };
-    }
-
-    if (maybeId) {
-      return {
-        id: maybeId,
-        path: `${DIGITAL_DESIGNS_COLLECTION}/${maybeId}`,
-      };
     }
   }
 
