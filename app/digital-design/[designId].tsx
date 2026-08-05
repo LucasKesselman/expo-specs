@@ -1,9 +1,12 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Image } from "expo-image";
+import { httpsCallable } from "firebase/functions";
 import { useCallback, useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -20,7 +23,8 @@ import {
 } from "firebase/firestore";
 
 import { useAuth } from "../../contexts/AuthContext";
-import { firestore } from "../../lib/firebase";
+import { firestore, functions } from "../../lib/firebase";
+import { dedupeOwnedGarmentReferences } from "../../lib/ownedGarments";
 import {
   buildSavedDigitalDesignRemoveValues,
   isDesignInSavedList,
@@ -29,6 +33,18 @@ import { mapFirestoreDocToMarketplaceDesign, type MarketplaceDesign } from "../.
 
 const DIGITAL_DESIGNS_COLLECTION_CANDIDATES = ["DigitalDesigns"] as const;
 const USERS_COLLECTION = "Users";
+const GARMENTS_COLLECTION = "Garments";
+const CARD_WIDTH = 160;
+
+type OwnedGarmentCard = {
+  id: string;
+  size: string;
+  color: string;
+  printStatus: string;
+  qrCodeStatus: string;
+  physicalDesignId: string | null;
+  digitalDesignId: string | null;
+};
 
 type LinkAppleZoomTargetModule = {
   AppleZoomTarget?: ComponentType<{ children: ReactNode }>;
@@ -87,6 +103,22 @@ function getInitialDesignFromParams(
   };
 }
 
+function normalizeLinkedDocumentId(value: unknown): string | null {
+  if (typeof value === "string" && value.trim()) {
+    const segments = value.split("/").filter(Boolean);
+    return segments.length ? segments[segments.length - 1] : value.trim();
+  }
+
+  if (typeof value === "object" && value !== null && "id" in value) {
+    const id = (value as { id?: unknown }).id;
+    if (typeof id === "string" && id.trim()) {
+      return id.trim();
+    }
+  }
+
+  return null;
+}
+
 function getAppleZoomTarget(): ComponentType<{ children: ReactNode }> | null {
   try {
     const linkModule = require("expo-router") as LinkAppleZoomTargetModule;
@@ -109,6 +141,12 @@ export default function DigitalDesignDetailScreen() {
   const [isInWardrobe, setIsInWardrobe] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isAddToGarmentVisible, setIsAddToGarmentVisible] = useState(false);
+  const [ownedGarmentCards, setOwnedGarmentCards] = useState<OwnedGarmentCard[]>([]);
+  const [isLoadingOwnedGarments, setIsLoadingOwnedGarments] = useState(false);
+  const [selectedGarmentId, setSelectedGarmentId] = useState<string | null>(null);
+  const [isAssigningGarment, setIsAssigningGarment] = useState(false);
+  const [addToGarmentError, setAddToGarmentError] = useState<string | null>(null);
   const AppleZoomTarget = useMemo(() => getAppleZoomTarget(), []);
 
   const refreshSavedMembership = useCallback(async () => {
@@ -293,6 +331,115 @@ export default function DigitalDesignDetailScreen() {
     );
   };
 
+  const openAddToGarmentModal = useCallback(async () => {
+    if (!user?.uid) {
+      router.push("/(auth)/landing");
+      return;
+    }
+
+    setIsAddToGarmentVisible(true);
+    setSelectedGarmentId(null);
+    setAddToGarmentError(null);
+    setIsLoadingOwnedGarments(true);
+
+    try {
+      const userSnapshot = await getDoc(doc(firestore, USERS_COLLECTION, user.uid));
+      const refs = dedupeOwnedGarmentReferences(
+        userSnapshot.exists() ? userSnapshot.data().ownedGarments : [],
+      );
+
+      if (!refs.length) {
+        setOwnedGarmentCards([]);
+        return;
+      }
+
+      const snapshots = await Promise.all(
+        refs.map(async ({ garmentId, garmentPath }) => {
+          try {
+            if (garmentPath) {
+              const pathSnapshot = await getDoc(doc(firestore, garmentPath));
+              if (pathSnapshot.exists()) {
+                return { garmentId, snapshot: pathSnapshot };
+              }
+            }
+            const fallback = await getDoc(
+              doc(collection(firestore, GARMENTS_COLLECTION), garmentId),
+            );
+            return { garmentId, snapshot: fallback };
+          } catch {
+            return { garmentId, snapshot: null };
+          }
+        }),
+      );
+
+      setOwnedGarmentCards(
+        snapshots.map(({ garmentId, snapshot }) => {
+          if (!snapshot || !snapshot.exists()) {
+            return {
+              id: garmentId,
+              size: "Unknown",
+              color: "Unknown",
+              printStatus: "Unavailable",
+              qrCodeStatus: "Unavailable",
+              physicalDesignId: null,
+              digitalDesignId: null,
+            };
+          }
+          const data = snapshot.data();
+          return {
+            id: garmentId,
+            size: typeof data.size === "string" ? data.size : "Unknown",
+            color: typeof data.color === "string" ? data.color : "Unknown",
+            printStatus:
+              typeof data.printStatus === "string" ? data.printStatus : "Unknown",
+            qrCodeStatus:
+              typeof data.qrCodeStatus === "string" ? data.qrCodeStatus : "Unknown",
+            physicalDesignId: normalizeLinkedDocumentId(data.physicalDesign),
+            digitalDesignId: normalizeLinkedDocumentId(data.digitalDesign),
+          };
+        }),
+      );
+    } catch (error) {
+      setOwnedGarmentCards([]);
+      setAddToGarmentError(
+        error instanceof Error ? error.message : "Unable to load owned garments.",
+      );
+    } finally {
+      setIsLoadingOwnedGarments(false);
+    }
+  }, [router, user?.uid]);
+
+  const handleConfirmAssignToGarment = async () => {
+    if (!design || !selectedGarmentId || isAssigningGarment) {
+      return;
+    }
+
+    setIsAssigningGarment(true);
+    setAddToGarmentError(null);
+    try {
+      const assignDigitalDesignToGarment = httpsCallable<
+        { garmentId: string; digitalDesignId: string },
+        { garmentId: string; digitalDesignId: string }
+      >(functions, "assignDigitalDesignToGarment");
+
+      await assignDigitalDesignToGarment({
+        garmentId: selectedGarmentId,
+        digitalDesignId: design.sourceDocId,
+      });
+
+      setIsAddToGarmentVisible(false);
+      setSelectedGarmentId(null);
+      setSuccessMessage(`Design assigned to garment ${selectedGarmentId}.`);
+      setErrorMessage(null);
+    } catch (error) {
+      setAddToGarmentError(
+        error instanceof Error ? error.message : "Failed to assign design to garment.",
+      );
+    } finally {
+      setIsAssigningGarment(false);
+    }
+  };
+
   const primaryButtonLabel =
     priceAmount > 0 ? "Buy Design" : isSaving ? "Saving..." : "Save Design";
 
@@ -331,6 +478,20 @@ export default function DigitalDesignDetailScreen() {
           )}
         </View>
       )}
+
+      {user && isInWardrobe ? (
+        <Pressable
+          onPress={() => {
+            void openAddToGarmentModal();
+          }}
+          style={({ pressed }) => [
+            styles.primaryButton,
+            pressed ? styles.primaryButtonPressed : null,
+          ]}
+        >
+          <Text style={styles.primaryButtonText}>Add to Garment</Text>
+        </Pressable>
+      ) : null}
 
       {isPublic ? (
         <Pressable
@@ -417,6 +578,105 @@ export default function DigitalDesignDetailScreen() {
           </Text>
         </Pressable>
       ) : null}
+
+      <Modal
+        visible={isAddToGarmentVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => {
+          if (!isAssigningGarment) {
+            setIsAddToGarmentVisible(false);
+          }
+        }}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Add to Garment</Text>
+            <Text style={styles.modalDescription}>
+              Select one of your owned garments, then confirm.
+            </Text>
+
+            {isLoadingOwnedGarments ? (
+              <View style={styles.modalLoadingRow}>
+                <ActivityIndicator color="#93C5FD" />
+                <Text style={styles.loadingText}>Loading garments...</Text>
+              </View>
+            ) : ownedGarmentCards.length === 0 ? (
+              <Text style={styles.modalEmptyText}>No owned garments yet.</Text>
+            ) : (
+              <FlatList
+                horizontal
+                data={ownedGarmentCards}
+                keyExtractor={(item) => item.id}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.carouselContent}
+                style={styles.carousel}
+                renderItem={({ item }) => {
+                  const isSelected = selectedGarmentId === item.id;
+                  return (
+                    <Pressable
+                      onPress={() => setSelectedGarmentId(item.id)}
+                      style={[
+                        styles.garmentCard,
+                        isSelected ? styles.garmentCardSelected : null,
+                      ]}
+                    >
+                      <Text numberOfLines={1} style={styles.garmentCardId}>
+                        {item.id}
+                      </Text>
+                      <Text style={styles.garmentCardLabel}>Size</Text>
+                      <Text style={styles.garmentCardValue}>{item.size}</Text>
+                      <Text style={styles.garmentCardLabel}>Color</Text>
+                      <Text style={styles.garmentCardValue}>{item.color}</Text>
+                      <Text style={styles.garmentCardLabel}>Print Status</Text>
+                      <Text style={styles.garmentCardValue}>{item.printStatus}</Text>
+                      <Text style={styles.garmentCardLabel}>QR Status</Text>
+                      <Text style={styles.garmentCardValue}>{item.qrCodeStatus}</Text>
+                    </Pressable>
+                  );
+                }}
+              />
+            )}
+
+            {addToGarmentError ? (
+              <Text style={styles.errorText}>{addToGarmentError}</Text>
+            ) : null}
+
+            <Pressable
+              onPress={() => {
+                void handleConfirmAssignToGarment();
+              }}
+              disabled={!selectedGarmentId || isAssigningGarment || isLoadingOwnedGarments}
+              style={({ pressed }) => [
+                styles.modalConfirmButton,
+                pressed && selectedGarmentId ? styles.primaryButtonPressed : null,
+                !selectedGarmentId || isAssigningGarment || isLoadingOwnedGarments
+                  ? styles.primaryButtonDisabled
+                  : null,
+              ]}
+            >
+              <Text style={styles.primaryButtonText}>
+                {isAssigningGarment ? "Assigning..." : "Confirm"}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                if (!isAssigningGarment) {
+                  setIsAddToGarmentVisible(false);
+                  setAddToGarmentError(null);
+                }
+              }}
+              style={({ pressed }) => [
+                styles.modalCloseButton,
+                pressed ? styles.primaryButtonPressed : null,
+              ]}
+              disabled={isAssigningGarment}
+            >
+              <Text style={styles.modalCloseButtonText}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -545,5 +805,106 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "800",
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(3, 7, 18, 0.7)",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  modalCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#1F2937",
+    backgroundColor: "#111827",
+    padding: 16,
+    maxHeight: "80%",
+  },
+  modalTitle: {
+    color: "#F9FAFB",
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  modalDescription: {
+    color: "#CBD5E1",
+    fontSize: 14,
+    fontWeight: "500",
+    lineHeight: 20,
+    marginTop: 8,
+  },
+  modalLoadingRow: {
+    marginTop: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  modalEmptyText: {
+    color: "#9CA3AF",
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 18,
+    marginTop: 14,
+  },
+  carousel: {
+    marginTop: 14,
+    maxHeight: 280,
+  },
+  carouselContent: {
+    gap: 10,
+    paddingVertical: 4,
+  },
+  garmentCard: {
+    width: CARD_WIDTH,
+    aspectRatio: 9 / 16,
+    backgroundColor: "#1F2937",
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "#374151",
+    padding: 12,
+  },
+  garmentCardSelected: {
+    borderColor: "#60A5FA",
+    backgroundColor: "#1E3A8A",
+  },
+  garmentCardId: {
+    color: "#F9FAFB",
+    fontSize: 11,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  garmentCardLabel: {
+    color: "#9CA3AF",
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    marginTop: 6,
+  },
+  garmentCardValue: {
+    color: "#E5E7EB",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  modalConfirmButton: {
+    marginTop: 14,
+    minHeight: 48,
+    borderRadius: 12,
+    backgroundColor: "#2563EB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalCloseButton: {
+    marginTop: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#374151",
+    backgroundColor: "#030712",
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  modalCloseButtonText: {
+    color: "#E5E7EB",
+    fontSize: 13,
+    fontWeight: "700",
   },
 });

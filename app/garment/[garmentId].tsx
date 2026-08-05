@@ -1,9 +1,11 @@
 import { useLocalSearchParams } from "expo-router";
 import { Image } from "expo-image";
-import { collection, doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
+import { collection, doc, getDoc } from "firebase/firestore";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  FlatList,
   Modal,
   Pressable,
   ScrollView,
@@ -12,14 +14,20 @@ import {
   View,
 } from "react-native";
 
+import { DigitalDesignCard } from "../../components/marketplace/DigitalDesignCard";
 import { useAuth } from "../../contexts/AuthContext";
-import { firestore } from "../../lib/firebase";
-import { normalizeSavedDigitalDesignReference } from "../../lib/savedDigitalDesigns";
+import { firestore, functions } from "../../lib/firebase";
+import { dedupeSavedDigitalDesignReferences } from "../../lib/savedDigitalDesigns";
+import {
+  mapFirestoreDocToMarketplaceDesign,
+  type MarketplaceDesign,
+} from "../../types/marketplaceDesign";
 
 const GARMENTS_COLLECTION = "Garments";
 const USERS_COLLECTION = "Users";
 const DIGITAL_DESIGNS_COLLECTION = "DigitalDesigns";
 const PHYSICAL_DESIGNS_COLLECTION = "PhysicalDesigns";
+const DESIGN_CARD_WIDTH = 180;
 
 type GarmentDetails = {
   id: string;
@@ -32,13 +40,8 @@ type GarmentDetails = {
   physicalDesignPath: string | null;
   digitalDesignId: string | null;
   digitalDesignPath: string | null;
+  digitalDesignName: string | null;
   physicalDesignImageUrl: string | null;
-};
-
-type SavedDigitalDesignOption = {
-  id: string;
-  path: string;
-  name: string;
 };
 
 function getParamAsString(param: string | string[] | undefined): string {
@@ -121,6 +124,7 @@ function mapSnapshotToGarmentDetails(
     digitalDesignPath:
       digitalDesignPath ||
       (digitalDesignId ? `${DIGITAL_DESIGNS_COLLECTION}/${digitalDesignId}` : null),
+    digitalDesignName: null,
     physicalDesignImageUrl: null,
   };
 }
@@ -150,6 +154,7 @@ function getInitialGarmentFromParams(
       : null,
     digitalDesignId: getParamAsString(params.digitalDesignId) || null,
     digitalDesignPath: getParamAsString(params.digitalDesignPath) || null,
+    digitalDesignName: null,
     physicalDesignImageUrl: null,
   };
 }
@@ -162,16 +167,12 @@ export default function GarmentDetailScreen() {
   const [garment, setGarment] = useState<GarmentDetails | null>(initialGarment);
   const [isHydrating, setIsHydrating] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
-  const [savedDigitalDesignOptions, setSavedDigitalDesignOptions] = useState<
-    SavedDigitalDesignOption[]
-  >([]);
-  const [selectedDigitalDesignPath, setSelectedDigitalDesignPath] = useState<
-    string | null
-  >(null);
+  const [isSelectDesignVisible, setIsSelectDesignVisible] = useState(false);
+  const [savedDesigns, setSavedDesigns] = useState<MarketplaceDesign[]>([]);
+  const [selectedDigitalDesignId, setSelectedDigitalDesignId] = useState<string | null>(null);
   const [isLoadingSavedDesigns, setIsLoadingSavedDesigns] = useState(false);
-  const [isUpdatingGarment, setIsUpdatingGarment] = useState(false);
-  const [editMessage, setEditMessage] = useState<string | null>(null);
+  const [isAssigningDesign, setIsAssigningDesign] = useState(false);
+  const [selectDesignError, setSelectDesignError] = useState<string | null>(null);
   const [updateNotice, setUpdateNotice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -234,10 +235,30 @@ export default function GarmentDetailScreen() {
               }
             }
 
+            let digitalDesignName: string | null = null;
+            if (mapped.digitalDesignPath) {
+              try {
+                const digitalDesignSnapshot = await getDoc(
+                  doc(firestore, mapped.digitalDesignPath),
+                );
+                if (digitalDesignSnapshot.exists()) {
+                  const digitalDesignData = digitalDesignSnapshot.data();
+                  digitalDesignName =
+                    typeof digitalDesignData.name === "string" &&
+                    digitalDesignData.name.trim()
+                      ? digitalDesignData.name.trim()
+                      : "Untitled design";
+                }
+              } catch {
+                digitalDesignName = null;
+              }
+            }
+
             if (isMounted) {
               setGarment({
                 ...mapped,
                 physicalDesignImageUrl,
+                digitalDesignName,
               });
             }
             return;
@@ -275,7 +296,7 @@ export default function GarmentDetailScreen() {
   }, [garmentId, params.garmentPath]);
 
   useEffect(() => {
-    if (!isEditModalVisible) {
+    if (!isSelectDesignVisible) {
       return;
     }
 
@@ -284,16 +305,17 @@ export default function GarmentDetailScreen() {
     const loadSavedDigitalDesigns = async () => {
       if (!user) {
         if (isMounted) {
-          setSavedDigitalDesignOptions([]);
-          setSelectedDigitalDesignPath(null);
-          setEditMessage("Sign in to edit this garment.");
+          setSavedDesigns([]);
+          setSelectedDigitalDesignId(null);
+          setSelectDesignError("Sign in to select a design.");
         }
         return;
       }
 
       if (isMounted) {
         setIsLoadingSavedDesigns(true);
-        setEditMessage(null);
+        setSelectDesignError(null);
+        setSelectedDigitalDesignId(null);
       }
 
       try {
@@ -301,38 +323,18 @@ export default function GarmentDetailScreen() {
           doc(collection(firestore, USERS_COLLECTION), user.uid),
         );
         const userData = userSnapshot.exists() ? userSnapshot.data() : {};
-        const rawSavedDigitalDesigns = Array.isArray(userData.savedDigitalDesigns)
-          ? userData.savedDigitalDesigns
-          : [];
+        const refs = dedupeSavedDigitalDesignReferences(userData.savedDigitalDesigns);
 
-        const normalizedRefs = Array.from(
-          rawSavedDigitalDesigns
-            .map(normalizeSavedDigitalDesignReference)
-            .filter((ref): ref is { id: string; path: string } => ref !== null)
-            .reduce((acc, ref) => {
-              if (!acc.has(ref.path)) {
-                acc.set(ref.path, ref);
-              }
-              return acc;
-            }, new Map<string, { id: string; path: string }>())
-            .values(),
-        );
-
-        const optionResults = await Promise.all(
-          normalizedRefs.map(async (ref) => {
+        const designSnapshots = await Promise.all(
+          refs.map(async (ref) => {
             try {
               const snapshot = await getDoc(doc(firestore, ref.path));
-              if (!snapshot.exists()) {
-                return { id: ref.id, path: ref.path, name: ref.id };
+              if (snapshot.exists()) {
+                return snapshot;
               }
-              const data = snapshot.data();
-              const name =
-                typeof data.name === "string" && data.name.trim()
-                  ? data.name.trim()
-                  : ref.id;
-              return { id: ref.id, path: ref.path, name };
+              return getDoc(doc(collection(firestore, DIGITAL_DESIGNS_COLLECTION), ref.id));
             } catch {
-              return { id: ref.id, path: ref.path, name: ref.id };
+              return null;
             }
           }),
         );
@@ -341,22 +343,28 @@ export default function GarmentDetailScreen() {
           return;
         }
 
-        setSavedDigitalDesignOptions(optionResults);
+        const designs = designSnapshots
+          .filter((snapshot): snapshot is NonNullable<typeof snapshot> =>
+            Boolean(snapshot?.exists()),
+          )
+          .map((snapshot) =>
+            mapFirestoreDocToMarketplaceDesign(snapshot, DIGITAL_DESIGNS_COLLECTION),
+          )
+          .filter((design) => design.marketplaceStatus !== "INACTIVE");
 
-        const preferredPath = garment?.digitalDesignPath;
-        const hasPreferred = Boolean(
-          preferredPath &&
-            optionResults.some((option) => option.path === preferredPath),
-        );
-
-        setSelectedDigitalDesignPath(
-          hasPreferred ? preferredPath! : (optionResults[0]?.path ?? null),
-        );
+        setSavedDesigns(designs);
+        if (garment?.digitalDesignId) {
+          const alreadyApplied = designs.some(
+            (design) => design.sourceDocId === garment.digitalDesignId,
+          );
+          if (alreadyApplied) {
+            setSelectedDigitalDesignId(garment.digitalDesignId);
+          }
+        }
       } catch (error) {
         if (isMounted) {
-          setSavedDigitalDesignOptions([]);
-          setSelectedDigitalDesignPath(null);
-          setEditMessage(
+          setSavedDesigns([]);
+          setSelectDesignError(
             error instanceof Error
               ? error.message
               : "Unable to load saved digital designs.",
@@ -374,67 +382,63 @@ export default function GarmentDetailScreen() {
     return () => {
       isMounted = false;
     };
-  }, [garment?.digitalDesignPath, isEditModalVisible, user]);
+  }, [garment?.digitalDesignId, isSelectDesignVisible, user]);
 
-  const handleUpdateGarmentDigitalDesign = async () => {
-    if (!garment) {
-      setEditMessage("Garment details are not loaded yet.");
+  const handleConfirmSelectDesign = async () => {
+    if (!garment || !selectedDigitalDesignId || isAssigningDesign) {
       return;
     }
 
-    if (!selectedDigitalDesignPath) {
-      setEditMessage("Select one saved digital design to continue.");
-      return;
-    }
-
-    const selectedDesign = savedDigitalDesignOptions.find(
-      (option) => option.path === selectedDigitalDesignPath,
+    const selectedDesign = savedDesigns.find(
+      (design) => design.sourceDocId === selectedDigitalDesignId,
     );
     if (!selectedDesign) {
-      setEditMessage("Selected design is not available. Please choose again.");
+      setSelectDesignError("Selected design is not available. Please choose again.");
       return;
     }
 
-    setIsUpdatingGarment(true);
-    setEditMessage(null);
+    setIsAssigningDesign(true);
+    setSelectDesignError(null);
     setUpdateNotice(null);
 
     try {
-      const garmentRef = doc(
-        firestore,
-        garment.garmentPath || `${GARMENTS_COLLECTION}/${garment.id}`,
-      );
+      const assignDigitalDesignToGarment = httpsCallable<
+        { garmentId: string; digitalDesignId: string },
+        { garmentId: string; digitalDesignId: string }
+      >(functions, "assignDigitalDesignToGarment");
 
-      await updateDoc(garmentRef, {
-        digitalDesign: doc(firestore, selectedDesign.path),
-        lastUpdatedAt: serverTimestamp(),
+      await assignDigitalDesignToGarment({
+        garmentId: garment.id,
+        digitalDesignId: selectedDesign.sourceDocId,
       });
 
       setGarment((previous) =>
         previous
           ? {
               ...previous,
-              digitalDesignId: selectedDesign.id,
-              digitalDesignPath: selectedDesign.path,
+              digitalDesignId: selectedDesign.sourceDocId,
+              digitalDesignPath: `${DIGITAL_DESIGNS_COLLECTION}/${selectedDesign.sourceDocId}`,
+              digitalDesignName: selectedDesign.name,
             }
           : previous,
       );
       setUpdateNotice(`Updated garment to design "${selectedDesign.name}".`);
-      setIsEditModalVisible(false);
+      setIsSelectDesignVisible(false);
+      setSelectedDigitalDesignId(null);
     } catch (error) {
-      setEditMessage(
+      setSelectDesignError(
         error instanceof Error
           ? error.message
           : "Failed to update garment design.",
       );
     } finally {
-      setIsUpdatingGarment(false);
+      setIsAssigningDesign(false);
     }
   };
 
   const isSelectedDesignAlreadyApplied =
-    Boolean(selectedDigitalDesignPath) &&
-    selectedDigitalDesignPath === garment?.digitalDesignPath;
+    Boolean(selectedDigitalDesignId) &&
+    selectedDigitalDesignId === garment?.digitalDesignId;
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -454,6 +458,23 @@ export default function GarmentDetailScreen() {
           </View>
         )}
       </View>
+
+      <Text style={styles.selectedDesignLabel}>
+        {garment?.digitalDesignName
+          ? `Design: ${garment.digitalDesignName}`
+          : "No digital design selected"}
+      </Text>
+      <Pressable
+        onPress={() => {
+          setIsSelectDesignVisible(true);
+        }}
+        style={({ pressed }) => [
+          styles.editButton,
+          pressed ? styles.editButtonPressed : null,
+        ]}
+      >
+        <Text style={styles.editButtonText}>Select Design</Text>
+      </Pressable>
 
       <Text style={styles.title}>Garment Details</Text>
       <Text style={styles.subtitle}>
@@ -480,18 +501,6 @@ export default function GarmentDetailScreen() {
       </View>
       {updateNotice ? <Text style={styles.successText}>{updateNotice}</Text> : null}
 
-      <Pressable
-        onPress={() => {
-          setIsEditModalVisible(true);
-        }}
-        style={({ pressed }) => [
-          styles.editButton,
-          pressed ? styles.editButtonPressed : null,
-        ]}
-      >
-        <Text style={styles.editButtonText}>Edit</Text>
-      </Pressable>
-
       {isHydrating ? (
         <View style={styles.loadingRow}>
           <ActivityIndicator color="#93C5FD" />
@@ -501,96 +510,98 @@ export default function GarmentDetailScreen() {
       {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
 
       <Modal
-        visible={isEditModalVisible}
+        visible={isSelectDesignVisible}
         animationType="slide"
         transparent
         onRequestClose={() => {
-          setIsEditModalVisible(false);
+          if (!isAssigningDesign) {
+            setIsSelectDesignVisible(false);
+          }
         }}
       >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Edit Garment</Text>
-            <Text style={styles.modalDescription}>Select one saved digital design.</Text>
+            <Text style={styles.modalTitle}>Select Design</Text>
+            <Text style={styles.modalDescription}>
+              Choose one saved digital design, then confirm.
+            </Text>
 
             {isLoadingSavedDesigns ? (
               <View style={styles.modalLoadingRow}>
                 <ActivityIndicator color="#93C5FD" />
                 <Text style={styles.loadingText}>Loading saved designs...</Text>
               </View>
-            ) : savedDigitalDesignOptions.length === 0 ? (
-              <Text style={styles.modalEmptyText}>
-                No saved digital designs were found on your account.
-              </Text>
+            ) : savedDesigns.length === 0 ? (
+              <Text style={styles.modalEmptyText}>No saved digital designs yet.</Text>
             ) : (
-              <View style={styles.optionList}>
-                {savedDigitalDesignOptions.map((option) => {
-                  const isSelected = selectedDigitalDesignPath === option.path;
-
+              <FlatList
+                horizontal
+                data={savedDesigns}
+                keyExtractor={(item) => item.sourceDocId}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.carouselContent}
+                style={styles.carousel}
+                renderItem={({ item }) => {
+                  const isSelected = selectedDigitalDesignId === item.sourceDocId;
                   return (
                     <Pressable
-                      key={option.path}
-                      onPress={() => {
-                        setSelectedDigitalDesignPath(option.path);
-                      }}
-                      style={({ pressed }) => [
-                        styles.optionRow,
-                        isSelected ? styles.optionRowSelected : null,
-                        pressed ? styles.optionRowPressed : null,
+                      onPress={() => setSelectedDigitalDesignId(item.sourceDocId)}
+                      style={[
+                        styles.designCardWrap,
+                        isSelected ? styles.designCardWrapSelected : null,
                       ]}
                     >
-                      <View style={styles.optionTextContainer}>
-                        <Text style={styles.optionName}>{option.name}</Text>
-                        <Text style={styles.optionId}>{option.id}</Text>
-                      </View>
-                      <Text style={styles.optionSelectText}>
-                        {isSelected ? "Selected" : "Select"}
-                      </Text>
+                      <DigitalDesignCard design={item} />
                     </Pressable>
                   );
-                })}
-              </View>
+                }}
+              />
             )}
 
-            {editMessage ? <Text style={styles.errorText}>{editMessage}</Text> : null}
+            {selectDesignError ? (
+              <Text style={styles.errorText}>{selectDesignError}</Text>
+            ) : null}
             <Pressable
               onPress={() => {
-                void handleUpdateGarmentDigitalDesign();
+                void handleConfirmSelectDesign();
               }}
               disabled={
                 isLoadingSavedDesigns ||
-                isUpdatingGarment ||
-                savedDigitalDesignOptions.length === 0 ||
+                isAssigningDesign ||
+                !selectedDigitalDesignId ||
                 isSelectedDesignAlreadyApplied
               }
               style={({ pressed }) => [
                 styles.modalSaveButton,
-                (pressed && !isUpdatingGarment) ? styles.modalSaveButtonPressed : null,
-                (isLoadingSavedDesigns ||
-                  isUpdatingGarment ||
-                  savedDigitalDesignOptions.length === 0 ||
-                  isSelectedDesignAlreadyApplied)
+                pressed && !isAssigningDesign ? styles.modalSaveButtonPressed : null,
+                isLoadingSavedDesigns ||
+                isAssigningDesign ||
+                !selectedDigitalDesignId ||
+                isSelectedDesignAlreadyApplied
                   ? styles.modalSaveButtonDisabled
                   : null,
               ]}
             >
               <Text style={styles.modalSaveButtonText}>
-                {isUpdatingGarment
-                  ? "Updating..."
+                {isAssigningDesign
+                  ? "Assigning..."
                   : isSelectedDesignAlreadyApplied
                     ? "Already Applied"
-                    : "Update Garment"}
+                    : "Confirm"}
               </Text>
             </Pressable>
             <Pressable
               onPress={() => {
-                setIsEditModalVisible(false);
-                setEditMessage(null);
+                if (!isAssigningDesign) {
+                  setIsSelectDesignVisible(false);
+                  setSelectDesignError(null);
+                }
               }}
               style={({ pressed }) => [
                 styles.modalCloseButton,
                 pressed ? styles.modalCloseButtonPressed : null,
               ]}
+              disabled={isAssigningDesign}
             >
               <Text style={styles.modalCloseButtonText}>Close</Text>
             </Pressable>
@@ -598,7 +609,7 @@ export default function GarmentDetailScreen() {
         </View>
       </Modal>
 
-      <Modal visible={isUpdatingGarment} transparent animationType="fade">
+      <Modal visible={isAssigningDesign} transparent animationType="fade">
         <View style={styles.updatingBackdrop}>
           <View style={styles.updatingCard}>
             <ActivityIndicator size="large" color="#93C5FD" />
@@ -701,8 +712,15 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginTop: 12,
   },
-  editButton: {
+  selectedDesignLabel: {
+    color: "#E2E8F0",
+    fontSize: 14,
+    fontWeight: "600",
     marginTop: 18,
+    textAlign: "center",
+  },
+  editButton: {
+    marginTop: 10,
     borderRadius: 12,
     backgroundColor: "#2563EB",
     paddingVertical: 12,
@@ -729,6 +747,7 @@ const styles = StyleSheet.create({
     borderColor: "#1F2937",
     backgroundColor: "#111827",
     padding: 16,
+    maxHeight: "80%",
   },
   modalTitle: {
     color: "#F9FAFB",
@@ -755,46 +774,23 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 14,
   },
-  optionList: {
+  carousel: {
     marginTop: 14,
-    gap: 8,
+    maxHeight: 320,
   },
-  optionRow: {
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#374151",
-    backgroundColor: "#030712",
-    padding: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
+  carouselContent: {
+    gap: 10,
+    paddingVertical: 4,
   },
-  optionRowSelected: {
+  designCardWrap: {
+    width: DESIGN_CARD_WIDTH,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: "transparent",
+    overflow: "hidden",
+  },
+  designCardWrapSelected: {
     borderColor: "#60A5FA",
-    backgroundColor: "#111827",
-  },
-  optionRowPressed: {
-    opacity: 0.85,
-  },
-  optionTextContainer: {
-    flex: 1,
-  },
-  optionName: {
-    color: "#F9FAFB",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  optionId: {
-    color: "#9CA3AF",
-    fontSize: 11,
-    fontWeight: "600",
-    marginTop: 4,
-  },
-  optionSelectText: {
-    color: "#93C5FD",
-    fontSize: 12,
-    fontWeight: "700",
   },
   modalSaveButton: {
     marginTop: 14,
