@@ -1,5 +1,7 @@
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
+import { createVideoPlayer } from "expo-video";
+import * as VideoThumbnails from "expo-video-thumbnails";
 import { useRouter } from "expo-router";
 import { httpsCallable } from "firebase/functions";
 import { ref, uploadBytes } from "firebase/storage";
@@ -22,6 +24,8 @@ import { useAuth } from "../contexts/AuthContext";
 import { functions, storage } from "../lib/firebase";
 
 const PREVIEW_PLACEHOLDER_ASSET = require("../assets/artie-assets/UIStuff/ArtieSymbolBlack.png");
+const MAX_VIDEO_DURATION_MS = 5 * 60 * 1000;
+const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".m4v"]);
 
 interface AssetSlot {
   uri: string;
@@ -35,6 +39,10 @@ function isImageMimeType(mimeType: string | undefined): boolean {
   return typeof mimeType === "string" && mimeType.toLowerCase().startsWith("image/");
 }
 
+function isVideoMimeType(mimeType: string | undefined): boolean {
+  return typeof mimeType === "string" && mimeType.toLowerCase().startsWith("video/");
+}
+
 function extensionFromFileName(name: string): string {
   const dotIndex = name.lastIndexOf(".");
   if (dotIndex <= 0 || dotIndex === name.length - 1) {
@@ -43,6 +51,147 @@ function extensionFromFileName(name: string): string {
 
   const extension = name.slice(dotIndex).toLowerCase();
   return /^[.][a-z0-9]+$/.test(extension) ? extension : "";
+}
+
+function isVideoFileName(name: string): boolean {
+  return VIDEO_EXTENSIONS.has(extensionFromFileName(name));
+}
+
+function isHeicLikeMimeType(mimeType: string | undefined): boolean {
+  if (!mimeType) return false;
+  const normalized = mimeType.toLowerCase();
+  return normalized === "image/heic" || normalized === "image/heif";
+}
+
+function isHeicLikeFileName(name: string): boolean {
+  const extension = extensionFromFileName(name);
+  return extension === ".heic" || extension === ".heif";
+}
+
+function isVideoAssetPick(picked: {
+  type?: string | null;
+  mimeType?: string | null;
+  fileName?: string | null;
+  name?: string | null;
+}): boolean {
+  if (picked.type === "video") return true;
+  if (isVideoMimeType(picked.mimeType ?? undefined)) return true;
+  const name = picked.fileName ?? picked.name ?? "";
+  return isVideoFileName(name);
+}
+
+/** After Compatible Photos picks, rewrite leftover HEIC metadata to JPEG for staging paths. */
+function assetSlotFromCompatiblePhotoPick(
+  picked: ImagePicker.ImagePickerAsset,
+  fallbackBaseName: string,
+): AssetSlot {
+  const fallbackName = `${fallbackBaseName}-${Date.now()}.jpg`;
+  let name = picked.fileName ?? fallbackName;
+  let mimeType = picked.mimeType ?? "image/jpeg";
+
+  if (isHeicLikeMimeType(mimeType) || isHeicLikeFileName(name)) {
+    mimeType = "image/jpeg";
+    const extension = extensionFromFileName(name);
+    if (extension === ".heic" || extension === ".heif") {
+      name = `${name.slice(0, -extension.length)}.jpg`;
+    } else if (!extension) {
+      name = `${name}.jpg`;
+    }
+  }
+
+  return {
+    uri: picked.uri,
+    name,
+    mimeType,
+  };
+}
+
+function assetSlotFromVideoPick(
+  uri: string,
+  fileName: string | null | undefined,
+  mimeType: string | null | undefined,
+): AssetSlot {
+  return {
+    uri,
+    name: fileName && fileName.trim().length > 0 ? fileName : `designAsset-${Date.now()}.mp4`,
+    mimeType: isVideoMimeType(mimeType ?? undefined) ? (mimeType as string) : "video/mp4",
+  };
+}
+
+function alertVideoRejected(reason: "tooLong" | "unknownDuration"): void {
+  if (reason === "tooLong") {
+    Alert.alert("Video Too Long", "Videos must be 5 minutes or shorter.");
+    return;
+  }
+  Alert.alert(
+    "Video Duration Unknown",
+    "Could not determine this video’s length. Please pick another clip that is 5 minutes or shorter.",
+  );
+}
+
+function isVideoDurationAllowed(durationMs: number | null | undefined): boolean {
+  if (durationMs == null || !Number.isFinite(durationMs) || durationMs <= 0) {
+    alertVideoRejected("unknownDuration");
+    return false;
+  }
+  if (durationMs > MAX_VIDEO_DURATION_MS) {
+    alertVideoRejected("tooLong");
+    return false;
+  }
+  return true;
+}
+
+async function getVideoDurationMsFromUri(uri: string): Promise<number | null> {
+  const player = createVideoPlayer(uri);
+  try {
+    return await new Promise<number | null>((resolve) => {
+      let settled = false;
+      const finish = (value: number | null) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        sourceSub.remove();
+        statusSub.remove();
+        resolve(value);
+      };
+
+      const timeout = setTimeout(() => finish(null), 12_000);
+
+      const sourceSub = player.addListener("sourceLoad", ({ duration }) => {
+        if (typeof duration === "number" && Number.isFinite(duration) && duration > 0) {
+          finish(duration * 1000);
+          return;
+        }
+        finish(null);
+      });
+
+      const statusSub = player.addListener("statusChange", ({ status }) => {
+        if (status === "error") {
+          finish(null);
+        }
+      });
+    });
+  } catch {
+    return null;
+  } finally {
+    player.release();
+  }
+}
+
+async function generatePreviewStillFromVideo(videoUri: string): Promise<AssetSlot | null> {
+  try {
+    const { uri } = await VideoThumbnails.getThumbnailAsync(videoUri, {
+      time: 0,
+      quality: 0.9,
+    });
+    return {
+      uri,
+      name: `previewStill-${Date.now()}.jpg`,
+      mimeType: "image/jpeg",
+    };
+  } catch {
+    return null;
+  }
 }
 
 function getPlaceholderPreviewSlot(): AssetSlot {
@@ -74,7 +223,9 @@ export default function CreateDigitalDesignScreen() {
 
   const isPublic = marketplaceStatus === "PUBLIC";
   const designAssetIsImage = isImageMimeType(designAsset?.mimeType);
-  const showPreviewStillPicker = !!designAsset && !designAssetIsImage;
+  const designAssetIsVideo = isVideoMimeType(designAsset?.mimeType);
+  // Preview Still UI only for non-raster assets (e.g. .gltf). Images reuse the asset; videos use auto thumbnail.
+  const showPreviewStillPicker = !!designAsset && !designAssetIsImage && !designAssetIsVideo;
 
   useEffect(() => {
     if (!loading && !user) {
@@ -109,19 +260,30 @@ export default function CreateDigitalDesignScreen() {
       if (!granted) return;
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
+        mediaTypes: ["images", "videos"],
         quality: 1,
         allowsEditing: false,
+        preferredAssetRepresentationMode:
+          ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
       });
       if (result.canceled || result.assets.length === 0) return;
       const picked = result.assets[0];
-      setDesignAsset({
-        uri: picked.uri,
-        name: picked.fileName ?? `designAsset-${Date.now()}.jpg`,
-        mimeType: picked.mimeType ?? "image/jpeg",
-      });
+
+      if (isVideoAssetPick(picked)) {
+        if (!isVideoDurationAllowed(picked.duration ?? null)) {
+          return;
+        }
+        const videoSlot = assetSlotFromVideoPick(picked.uri, picked.fileName, picked.mimeType);
+        // Generate still before committing designAsset so Create cannot submit a stale still.
+        const still = await generatePreviewStillFromVideo(picked.uri);
+        setDesignAsset(videoSlot);
+        setPreviewStill(still);
+        return;
+      }
+
+      setDesignAsset(assetSlotFromCompatiblePhotoPick(picked, "designAsset"));
     } catch {
-      Alert.alert("Picker Error", "Could not pick a photo for Design Asset.");
+      Alert.alert("Picker Error", "Could not pick a photo or video for Design Asset.");
     }
   }, [ensurePhotoLibraryPermission]);
 
@@ -130,11 +292,27 @@ export default function CreateDigitalDesignScreen() {
       const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
       if (result.canceled || result.assets.length === 0) return;
       const picked = result.assets[0];
-      setDesignAsset({
+      const slot: AssetSlot = {
         uri: picked.uri,
         name: picked.name,
         mimeType: picked.mimeType ?? "application/octet-stream",
-      });
+      };
+
+      if (isVideoAssetPick({ mimeType: slot.mimeType, name: slot.name })) {
+        const durationMs = await getVideoDurationMsFromUri(picked.uri);
+        if (!isVideoDurationAllowed(durationMs)) {
+          return;
+        }
+        const videoSlot = assetSlotFromVideoPick(picked.uri, picked.name, picked.mimeType);
+        // Generate still before committing designAsset so Create cannot submit a stale still.
+        const still = await generatePreviewStillFromVideo(picked.uri);
+        setDesignAsset(videoSlot);
+        setPreviewStill(still);
+        return;
+      }
+
+      setDesignAsset(slot);
+      setPreviewStill(null);
     } catch {
       Alert.alert("Picker Error", "Could not pick a file for Design Asset.");
     }
@@ -149,14 +327,11 @@ export default function CreateDigitalDesignScreen() {
         mediaTypes: ["images"],
         quality: 1,
         allowsEditing: false,
+        preferredAssetRepresentationMode:
+          ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
       });
       if (result.canceled || result.assets.length === 0) return;
-      const picked = result.assets[0];
-      setPreviewStill({
-        uri: picked.uri,
-        name: picked.fileName ?? `previewStill-${Date.now()}.jpg`,
-        mimeType: picked.mimeType ?? "image/jpeg",
-      });
+      setPreviewStill(assetSlotFromCompatiblePhotoPick(result.assets[0], "previewStill"));
     } catch {
       Alert.alert("Picker Error", "Could not pick a preview still.");
     }
@@ -415,7 +590,8 @@ export default function CreateDigitalDesignScreen() {
             </View>
           </View>
           <Text style={styles.helpText}>
-            Photos opens your photo library. Files opens the document picker (e.g. .gltf).
+            Photos opens your photo and video library (videos max 5 minutes). Files opens the
+            document picker (e.g. .gltf).
           </Text>
         </View>
 
