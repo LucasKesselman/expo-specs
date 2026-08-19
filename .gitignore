@@ -37,8 +37,7 @@ yarn-error.*
 functions/.env.local
 functions/.runtimeconfig.json
 
-# Firebase config (contains your project credentials)
-lib/firebase.config.ts
+# Firebase service account (private key — keep out of git)
 scripts/serviceAccountKey.json
 .firebase/
 firebase-debug.log
