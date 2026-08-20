@@ -1,6 +1,17 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  ActivityIndicator,
+  Image,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+} from "react-native";
 
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -25,6 +36,7 @@ export default function SignupScreen() {
     confirmPassword.length > 0;
 
   const handleSignup = async () => {
+    Keyboard.dismiss();
     if (submitting) return;
     if (!firstName.trim()) {
       setError("Please enter your first name.");
@@ -65,105 +77,125 @@ export default function SignupScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Image
-        source={require("../../assets/artie-assets/UIStuff/iconArtieLogo.png")}
-        style={styles.wordmark}
-        resizeMode="contain"
-      />
-      <Text style={styles.title}>Create your account</Text>
-
-      <TextInput
-        style={styles.input}
-        value={firstName}
-        onChangeText={setFirstName}
-        autoCapitalize="words"
-        autoCorrect={false}
-        placeholder="First Name"
-        placeholderTextColor="#6B7280"
-        editable={!submitting}
-      />
-      <TextInput
-        style={styles.input}
-        value={lastName}
-        onChangeText={setLastName}
-        autoCapitalize="words"
-        autoCorrect={false}
-        placeholder="Last Name"
-        placeholderTextColor="#6B7280"
-        editable={!submitting}
-      />
-      <TextInput
-        style={styles.input}
-        value={username}
-        onChangeText={setUsername}
-        autoCapitalize="none"
-        autoCorrect={false}
-        placeholder="Username"
-        placeholderTextColor="#6B7280"
-        editable={!submitting}
-      />
-      <TextInput
-        style={styles.input}
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-        autoCorrect={false}
-        placeholder="Email"
-        placeholderTextColor="#6B7280"
-        editable={!submitting}
-      />
-      <TextInput
-        style={styles.input}
-        value={password}
-        onChangeText={setPassword}
-        autoCapitalize="none"
-        autoCorrect={false}
-        secureTextEntry
-        placeholder="Password"
-        placeholderTextColor="#6B7280"
-        editable={!submitting}
-      />
-      <TextInput
-        style={styles.input}
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-        autoCapitalize="none"
-        autoCorrect={false}
-        secureTextEntry
-        placeholder="Confirm password"
-        placeholderTextColor="#6B7280"
-        editable={!submitting}
-      />
-
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-      <Pressable
-        style={({ pressed }) => [
-          styles.submitButton,
-          (submitting || !formComplete) && styles.submitButtonDisabled,
-          pressed && styles.buttonPressed,
-        ]}
-        onPress={handleSignup}
-        disabled={submitting || !formComplete}
+    <KeyboardAvoidingView
+      style={styles.flex}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
-        {submitting ? (
-          <ActivityIndicator color="#111827" size="small" />
-        ) : (
-          <Text style={styles.submitButtonText}>Sign Up</Text>
-        )}
-      </Pressable>
-    </View>
+        <Image
+          source={require("../../assets/artie-assets/UIStuff/iconArtieLogo.png")}
+          style={styles.wordmark}
+          resizeMode="contain"
+        />
+        <Text style={styles.title}>Create your account</Text>
+
+        <TextInput
+          style={styles.input}
+          value={firstName}
+          onChangeText={setFirstName}
+          autoCapitalize="words"
+          autoCorrect={false}
+          placeholder="First Name"
+          placeholderTextColor="#6B7280"
+          editable={!submitting}
+        />
+        <TextInput
+          style={styles.input}
+          value={lastName}
+          onChangeText={setLastName}
+          autoCapitalize="words"
+          autoCorrect={false}
+          placeholder="Last Name"
+          placeholderTextColor="#6B7280"
+          editable={!submitting}
+        />
+        <TextInput
+          style={styles.input}
+          value={username}
+          onChangeText={setUsername}
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholder="Username"
+          placeholderTextColor="#6B7280"
+          editable={!submitting}
+        />
+        <TextInput
+          style={styles.input}
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholder="Email"
+          placeholderTextColor="#6B7280"
+          editable={!submitting}
+        />
+        <TextInput
+          style={styles.input}
+          value={password}
+          onChangeText={setPassword}
+          autoCapitalize="none"
+          autoCorrect={false}
+          secureTextEntry
+          placeholder="Password"
+          placeholderTextColor="#6B7280"
+          editable={!submitting}
+        />
+        <TextInput
+          style={styles.input}
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          autoCapitalize="none"
+          autoCorrect={false}
+          secureTextEntry
+          placeholder="Confirm password"
+          placeholderTextColor="#6B7280"
+          editable={!submitting}
+          returnKeyType="done"
+          onSubmitEditing={Keyboard.dismiss}
+        />
+
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.submitButton,
+            (submitting || !formComplete) && styles.submitButtonDisabled,
+            pressed && styles.buttonPressed,
+          ]}
+          onPress={handleSignup}
+          disabled={submitting || !formComplete}
+        >
+          {submitting ? (
+            <ActivityIndicator color="#111827" size="small" />
+          ) : (
+            <Text style={styles.submitButtonText}>Sign Up</Text>
+          )}
+        </Pressable>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+    backgroundColor: "#111827",
+  },
   container: {
     flex: 1,
     backgroundColor: "#111827",
+  },
+  contentContainer: {
+    flexGrow: 1,
     paddingHorizontal: 20,
     paddingTop: 36,
+    paddingBottom: 48,
   },
   wordmark: {
     width: 148,
