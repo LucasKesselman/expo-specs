@@ -91,6 +91,28 @@ export default function RootLayout() {
               presentation: "card",
             }}
           />
+          <Stack.Screen
+            name="privacy-policy"
+            options={{
+              headerShown: true,
+              title: "Privacy Policy",
+              headerStyle: { backgroundColor: "#111827" },
+              headerTintColor: "#E5E7EB",
+              headerTitleStyle: { fontWeight: "700" },
+              presentation: "card",
+            }}
+          />
+          <Stack.Screen
+            name="terms-of-service"
+            options={{
+              headerShown: true,
+              title: "Terms of Service",
+              headerStyle: { backgroundColor: "#111827" },
+              headerTintColor: "#E5E7EB",
+              headerTitleStyle: { fontWeight: "700" },
+              presentation: "card",
+            }}
+          />
           </Stack>
         </GarmentNicknamesProvider>
       </SelectedDigitalDesignProvider>

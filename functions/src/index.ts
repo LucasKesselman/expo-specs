@@ -7,3 +7,4 @@ export { createDigitalDesign } from "./createDigitalDesign";
 export { createGarment } from "./createGarment";
 export { linkGarment } from "./linkGarment";
 export { assignDigitalDesignToGarment } from "./assignDigitalDesignToGarment";
+export { deleteAccount } from "./deleteAccount";
