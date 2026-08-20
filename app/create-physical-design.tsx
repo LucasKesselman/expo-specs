@@ -1,3 +1,4 @@
+import { useHeaderHeight } from "@react-navigation/elements";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
@@ -7,6 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -58,6 +60,7 @@ function isImageKey(key: AssetKey): boolean {
 
 export default function CreatePhysicalDesignScreen() {
   const router = useRouter();
+  const headerHeight = useHeaderHeight();
   const { loading, user } = useAuth();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -144,6 +147,7 @@ export default function CreatePhysicalDesignScreen() {
     !!allAssetsSelected;
 
   const handleSubmit = useCallback(async () => {
+    Keyboard.dismiss();
     if (!formValid || isSubmitting) return;
 
     if (!user) {
@@ -240,11 +244,14 @@ export default function CreatePhysicalDesignScreen() {
     <KeyboardAvoidingView
       style={styles.flex}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={headerHeight}
     >
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets
       >
         <Text style={styles.sectionTitle}>Design Details</Text>
 

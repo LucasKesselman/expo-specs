@@ -86,6 +86,7 @@ export default function SignupScreen() {
         contentContainerStyle={styles.contentContainer}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets
       >
         <Image
           source={require("../../assets/artie-assets/UIStuff/iconArtieLogo.png")}

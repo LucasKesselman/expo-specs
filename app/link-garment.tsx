@@ -1,3 +1,4 @@
+import { useHeaderHeight } from "@react-navigation/elements";
 import { useFocusEffect } from "@react-navigation/native";
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
 import { useRouter } from "expo-router";
@@ -5,8 +6,11 @@ import { httpsCallable } from "firebase/functions";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -24,6 +28,7 @@ type LinkPhase = "scan" | "linking" | "success" | "error";
 
 export default function LinkGarmentScreen() {
   const router = useRouter();
+  const headerHeight = useHeaderHeight();
   const { user, loading: authLoading } = useAuth();
   const { setNickname } = useGarmentNicknames();
   const [permission, requestPermission] = useCameraPermissions();
@@ -88,6 +93,7 @@ export default function LinkGarmentScreen() {
   }, []);
 
   const handleSaveNickname = useCallback(async () => {
+    Keyboard.dismiss();
     if (!linkedGarmentId) {
       return;
     }
@@ -200,59 +206,71 @@ export default function LinkGarmentScreen() {
 
   if (phase === "success" && linkedGarmentId) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.title}>Garment linked</Text>
-        <Text style={styles.subtitle}>
-          Give this garment a nickname so it is easier to find in your wardrobe.
-        </Text>
-        <TextInput
-          value={nicknameDraft}
-          onChangeText={setNicknameDraft}
-          placeholder="Nickname"
-          placeholderTextColor="#6B7280"
-          style={styles.nicknameInput}
-          returnKeyType="done"
-          autoCapitalize="words"
-          onSubmitEditing={() => {
-            void handleSaveNickname();
-          }}
-        />
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => void handleSaveNickname()}
-          disabled={isSavingNickname}
-          style={({ pressed }) => [
-            styles.primaryButton,
-            (pressed || isSavingNickname) && styles.pressed,
-          ]}
+      <KeyboardAvoidingView
+        style={styles.successFlex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={headerHeight}
+      >
+        <ScrollView
+          style={styles.successScroll}
+          contentContainerStyle={styles.successContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets
         >
-          <Text style={styles.primaryButtonText}>
-            {isSavingNickname ? "Saving..." : "Save nickname"}
+          <Text style={styles.title}>Garment linked</Text>
+          <Text style={styles.subtitle}>
+            Give this garment a nickname so it is easier to find in your wardrobe.
           </Text>
-        </Pressable>
-        {nicknameNotice ? <Text style={styles.successText}>{nicknameNotice}</Text> : null}
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.replace(`/garment/${linkedGarmentId}`)}
-          style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
-        >
-          <Text style={styles.secondaryButtonText}>View garment</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={handleRescan}
-          style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
-        >
-          <Text style={styles.secondaryButtonText}>Scan another</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.replace("/(tabs)/wardrobe")}
-          style={({ pressed }) => [styles.skipButton, pressed && styles.pressed]}
-        >
-          <Text style={styles.skipButtonText}>Skip for now</Text>
-        </Pressable>
-      </View>
+          <TextInput
+            value={nicknameDraft}
+            onChangeText={setNicknameDraft}
+            placeholder="Nickname"
+            placeholderTextColor="#6B7280"
+            style={styles.nicknameInput}
+            returnKeyType="done"
+            autoCapitalize="words"
+            onSubmitEditing={() => {
+              void handleSaveNickname();
+            }}
+          />
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => void handleSaveNickname()}
+            disabled={isSavingNickname}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              (pressed || isSavingNickname) && styles.pressed,
+            ]}
+          >
+            <Text style={styles.primaryButtonText}>
+              {isSavingNickname ? "Saving..." : "Save nickname"}
+            </Text>
+          </Pressable>
+          {nicknameNotice ? <Text style={styles.successText}>{nicknameNotice}</Text> : null}
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.replace(`/garment/${linkedGarmentId}`)}
+            style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
+          >
+            <Text style={styles.secondaryButtonText}>View garment</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={handleRescan}
+            style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
+          >
+            <Text style={styles.secondaryButtonText}>Scan another</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.replace("/(tabs)/wardrobe")}
+            style={({ pressed }) => [styles.skipButton, pressed && styles.pressed]}
+          >
+            <Text style={styles.skipButtonText}>Skip for now</Text>
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -293,6 +311,22 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#000000",
+  },
+  successFlex: {
+    flex: 1,
+    backgroundColor: "#111827",
+  },
+  successScroll: {
+    flex: 1,
+    backgroundColor: "#111827",
+  },
+  successContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingBottom: 48,
+    gap: 12,
   },
   centered: {
     flex: 1,

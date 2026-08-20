@@ -1,3 +1,4 @@
+import { useHeaderHeight } from "@react-navigation/elements";
 import { useLocalSearchParams } from "expo-router";
 import { Image } from "expo-image";
 import { httpsCallable } from "firebase/functions";
@@ -6,7 +7,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -155,6 +159,7 @@ function getInitialGarmentFromParams(
 
 export default function GarmentDetailScreen() {
   const params = useLocalSearchParams();
+  const headerHeight = useHeaderHeight();
   const { user } = useAuth();
   const { getNickname, setNickname } = useGarmentNicknames();
   const garmentId = getParamAsString(params.garmentId);
@@ -447,6 +452,7 @@ export default function GarmentDetailScreen() {
   };
 
   const persistNickname = async () => {
+    Keyboard.dismiss();
     if (!garmentId) {
       return;
     }
@@ -472,7 +478,18 @@ export default function GarmentDetailScreen() {
     selectedDigitalDesignId === garment?.digitalDesignId;
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={headerHeight}
+    >
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets
+      >
       <View style={styles.heroContainer}>
         {garment?.physicalDesignImageUrl ? (
           <Image
@@ -670,7 +687,8 @@ export default function GarmentDetailScreen() {
           </View>
         </View>
       </Modal>
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

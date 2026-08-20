@@ -1,3 +1,4 @@
+import { useHeaderHeight } from "@react-navigation/elements";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { createVideoPlayer } from "expo-video";
@@ -10,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -209,6 +211,7 @@ function getPlaceholderPreviewSlot(): AssetSlot {
 
 export default function CreateDigitalDesignScreen() {
   const router = useRouter();
+  const headerHeight = useHeaderHeight();
   const { loading, user } = useAuth();
   const [marketplaceStatus, setMarketplaceStatus] = useState<MarketplaceStatus>("PRIVATE");
   const [name, setName] = useState("");
@@ -357,6 +360,7 @@ export default function CreateDigitalDesignScreen() {
   }, []);
 
   const handleSubmit = useCallback(async () => {
+    Keyboard.dismiss();
     if (!formValid || isSubmitting || !designAsset) return;
 
     if (!user) {
@@ -468,11 +472,14 @@ export default function CreateDigitalDesignScreen() {
     <KeyboardAvoidingView
       style={styles.flex}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={headerHeight}
     >
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets
       >
         <Text style={styles.sectionTitle}>Design Details</Text>
 
