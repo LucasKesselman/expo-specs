@@ -1,12 +1,14 @@
 import { Stack } from "expo-router";
 import { AuthProvider } from "../contexts/AuthContext";
+import { GarmentNicknamesProvider } from "../contexts/GarmentNicknamesContext";
 import { SelectedDigitalDesignProvider } from "../contexts/SelectedDigitalDesignContext";
 
 export default function RootLayoutIOS() {
   return (
     <AuthProvider>
       <SelectedDigitalDesignProvider>
-        <Stack screenOptions={{ headerShown: false }}>
+        <GarmentNicknamesProvider>
+          <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="(auth)" />
           <Stack.Screen
@@ -86,7 +88,8 @@ export default function RootLayoutIOS() {
               presentation: "card",
             }}
           />
-        </Stack>
+          </Stack>
+        </GarmentNicknamesProvider>
       </SelectedDigitalDesignProvider>
     </AuthProvider>
   );

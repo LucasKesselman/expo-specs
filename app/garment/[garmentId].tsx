@@ -2,7 +2,7 @@ import { useLocalSearchParams } from "expo-router";
 import { Image } from "expo-image";
 import { httpsCallable } from "firebase/functions";
 import { collection, doc, getDoc } from "firebase/firestore";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -11,12 +11,15 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 
 import { DigitalDesignCard } from "../../components/marketplace/DigitalDesignCard";
 import { useAuth } from "../../contexts/AuthContext";
+import { useGarmentNicknames } from "../../contexts/GarmentNicknamesContext";
 import { firestore, functions } from "../../lib/firebase";
+import { firstValidImageUrl } from "../../lib/firstValidImageUrl";
 import { dedupeSavedDigitalDesignReferences } from "../../lib/savedDigitalDesigns";
 import {
   mapFirestoreDocToMarketplaceDesign,
@@ -87,15 +90,6 @@ function normalizeLinkedDocumentPath(value: unknown): string | null {
   return null;
 }
 
-function firstValidImageUrl(candidates: unknown[]): string | null {
-  for (const value of candidates) {
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-  }
-  return null;
-}
-
 function mapSnapshotToGarmentDetails(
   garmentId: string,
   garmentPath: string,
@@ -162,6 +156,7 @@ function getInitialGarmentFromParams(
 export default function GarmentDetailScreen() {
   const params = useLocalSearchParams();
   const { user } = useAuth();
+  const { getNickname, setNickname } = useGarmentNicknames();
   const garmentId = getParamAsString(params.garmentId);
   const initialGarment = useMemo(() => getInitialGarmentFromParams(params), [params]);
   const [garment, setGarment] = useState<GarmentDetails | null>(initialGarment);
@@ -174,6 +169,21 @@ export default function GarmentDetailScreen() {
   const [isAssigningDesign, setIsAssigningDesign] = useState(false);
   const [selectDesignError, setSelectDesignError] = useState<string | null>(null);
   const [updateNotice, setUpdateNotice] = useState<string | null>(null);
+  const [nicknameDraft, setNicknameDraft] = useState(() => getNickname(garmentId));
+  const [nicknameNotice, setNicknameNotice] = useState<string | null>(null);
+  const nicknameNoticeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setNicknameDraft(getNickname(garmentId));
+  }, [garmentId, getNickname]);
+
+  useEffect(() => {
+    return () => {
+      if (nicknameNoticeTimeoutRef.current) {
+        clearTimeout(nicknameNoticeTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!garmentId) {
@@ -436,6 +446,27 @@ export default function GarmentDetailScreen() {
     }
   };
 
+  const persistNickname = async () => {
+    if (!garmentId) {
+      return;
+    }
+
+    const previousNickname = getNickname(garmentId);
+    const nextNickname = nicknameDraft.trim();
+    await setNickname(garmentId, nicknameDraft);
+
+    if (nextNickname && nextNickname !== previousNickname) {
+      setNicknameNotice("New Nickname Set");
+      if (nicknameNoticeTimeoutRef.current) {
+        clearTimeout(nicknameNoticeTimeoutRef.current);
+      }
+      nicknameNoticeTimeoutRef.current = setTimeout(() => {
+        setNicknameNotice(null);
+        nicknameNoticeTimeoutRef.current = null;
+      }, 10_000);
+    }
+  };
+
   const isSelectedDesignAlreadyApplied =
     Boolean(selectedDigitalDesignId) &&
     selectedDigitalDesignId === garment?.digitalDesignId;
@@ -459,7 +490,7 @@ export default function GarmentDetailScreen() {
         )}
       </View>
 
-      <Text style={styles.selectedDesignLabel}>
+      <Text style={styles.title}>
         {garment?.digitalDesignName
           ? `Design: ${garment.digitalDesignName}`
           : "No digital design selected"}
@@ -481,6 +512,25 @@ export default function GarmentDetailScreen() {
         {garment?.id ?? garmentId ?? "Unknown garment"}
       </Text>
 
+      <View style={styles.metaContainer}>
+        <Text style={styles.metaLabel}>Nickname (Tap to Edit)</Text>
+        <TextInput
+          value={nicknameDraft}
+          onChangeText={setNicknameDraft}
+          onBlur={() => {
+            void persistNickname();
+          }}
+          onSubmitEditing={() => {
+            void persistNickname();
+          }}
+          placeholder="Add a nickname"
+          placeholderTextColor="#6B7280"
+          style={styles.metaInput}
+          returnKeyType="done"
+          autoCapitalize="words"
+        />
+      </View>
+      {nicknameNotice ? <Text style={styles.successText}>{nicknameNotice}</Text> : null}
       <View style={styles.metaContainer}>
         <Text style={styles.metaLabel}>Version</Text>
         <Text style={styles.metaValue}>{garment?.version ?? "N/A"}</Text>
@@ -689,6 +739,14 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginTop: 4,
   },
+  metaInput: {
+    color: "#E2E8F0",
+    fontSize: 14,
+    fontWeight: "600",
+    marginTop: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 0,
+  },
   loadingRow: {
     marginTop: 18,
     flexDirection: "row",
@@ -711,13 +769,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     marginTop: 12,
-  },
-  selectedDesignLabel: {
-    color: "#E2E8F0",
-    fontSize: 14,
-    fontWeight: "600",
-    marginTop: 18,
-    textAlign: "center",
   },
   editButton: {
     marginTop: 10,

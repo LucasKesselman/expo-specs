@@ -1,4 +1,3 @@
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
 import { collection, doc, getDoc } from "firebase/firestore";
@@ -15,9 +14,12 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { GarmentPreviewCard } from "../../components/garment/GarmentPreviewCard";
 import { DigitalDesignCard } from "../../components/marketplace/DigitalDesignCard";
 import { useAuth } from "../../contexts/AuthContext";
+import { useGarmentNicknames } from "../../contexts/GarmentNicknamesContext";
 import { firestore } from "../../lib/firebase";
+import { fetchPhysicalDesignThumbnails } from "../../lib/hydratePhysicalDesignThumbnails";
 import { dedupeSavedDigitalDesignReferences } from "../../lib/savedDigitalDesigns";
 import {
   mapFirestoreDocToMarketplaceDesign,
@@ -44,6 +46,7 @@ type GarmentCardData = {
   qrCodeStatus: string;
   physicalDesignId: string | null;
   digitalDesignId: string | null;
+  thumbnailUrl: string | null;
 };
 
 type OwnedGarmentReference = {
@@ -118,6 +121,7 @@ function normalizeLinkedDocumentId(value: unknown): string | null {
 
 export default function WardrobeScreen() {
   const { user } = useAuth();
+  const { getNickname } = useGarmentNicknames();
   const insets = useSafeAreaInsets();
   const [isLoadingGarments, setIsLoadingGarments] = useState(true);
   const [isLoadingDesigns, setIsLoadingDesigns] = useState(true);
@@ -275,6 +279,7 @@ export default function WardrobeScreen() {
               qrCodeStatus: "Unavailable",
               physicalDesignId: null,
               digitalDesignId: null,
+              thumbnailUrl: null,
             };
           }
 
@@ -312,10 +317,21 @@ export default function WardrobeScreen() {
             digitalDesignId: normalizeLinkedDocumentId(
               garmentData.digitalDesign,
             ),
+            thumbnailUrl: null,
           };
         });
 
-        setOwnedGarments(garmentCards);
+        const thumbnails = await fetchPhysicalDesignThumbnails(
+          garmentCards.map((card) => card.physicalDesignId),
+        );
+        setOwnedGarments(
+          garmentCards.map((card) => ({
+            ...card,
+            thumbnailUrl: card.physicalDesignId
+              ? thumbnails.get(card.physicalDesignId) ?? null
+              : null,
+          })),
+        );
       } catch {
         setOwnedGarments([]);
         setGarmentsErrorMessage("We couldn't load your garments right now.");
@@ -379,7 +395,6 @@ export default function WardrobeScreen() {
           <View style={styles.cardColumn}>
             <Pressable
               style={({ pressed }) => [
-                styles.garmentCard,
                 pressed ? styles.garmentCardPressed : null,
               ]}
               onPress={() => {
@@ -400,44 +415,14 @@ export default function WardrobeScreen() {
                 });
               }}
             >
-              <View style={styles.garmentCardHeader}>
-                <Ionicons name="shirt-outline" size={20} color="#BFDBFE" />
-                <Text numberOfLines={1} style={styles.garmentCardId}>
-                  {item.id}
-                </Text>
-              </View>
-
-              <View style={styles.garmentCardBody}>
-                <Text style={styles.garmentCardLabel}>Size</Text>
-                <Text style={styles.garmentCardValue}>{item.size}</Text>
-
-                <Text style={styles.garmentCardLabel}>Color</Text>
-                <Text style={styles.garmentCardValue}>{item.color}</Text>
-
-                <Text style={styles.garmentCardLabel}>Print Status</Text>
-                <Text style={styles.garmentCardValue}>{item.printStatus}</Text>
-
-                <Text style={styles.garmentCardLabel}>QR Status</Text>
-                <Text style={styles.garmentCardValue}>{item.qrCodeStatus}</Text>
-
-                {item.physicalDesignId ? (
-                  <>
-                    <Text style={styles.garmentCardLabel}>Physical Design</Text>
-                    <Text numberOfLines={1} style={styles.garmentCardValue}>
-                      {item.physicalDesignId}
-                    </Text>
-                  </>
-                ) : null}
-
-                {item.digitalDesignId ? (
-                  <>
-                    <Text style={styles.garmentCardLabel}>Digital Design</Text>
-                    <Text numberOfLines={1} style={styles.garmentCardValue}>
-                      {item.digitalDesignId}
-                    </Text>
-                  </>
-                ) : null}
-              </View>
+              <GarmentPreviewCard
+                garmentId={item.id}
+                nickname={getNickname(item.id)}
+                version={item.version}
+                color={item.color}
+                size={item.size}
+                thumbnailUrl={item.thumbnailUrl}
+              />
             </Pressable>
           </View>
         )}
@@ -689,43 +674,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: "center",
   },
-  garmentCard: {
-    aspectRatio: 9 / 16,
-    backgroundColor: "#1F2937",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#374151",
-    padding: 12,
-  },
   garmentCardPressed: {
     opacity: 0.82,
-  },
-  garmentCardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 10,
-  },
-  garmentCardId: {
-    flex: 1,
-    color: "#F9FAFB",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  garmentCardBody: {
-    flex: 1,
-  },
-  garmentCardLabel: {
-    color: "#9CA3AF",
-    fontSize: 11,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    marginTop: 8,
-  },
-  garmentCardValue: {
-    color: "#E5E7EB",
-    fontSize: 13,
-    fontWeight: "600",
-    marginTop: 2,
   },
 });

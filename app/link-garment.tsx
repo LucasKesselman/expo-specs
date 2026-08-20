@@ -9,10 +9,12 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 
 import { useAuth } from "../contexts/AuthContext";
+import { useGarmentNicknames } from "../contexts/GarmentNicknamesContext";
 import { functions } from "../lib/firebase";
 import { normalizeGarmentIdFromQrPayload } from "../lib/resolveGarmentDigitalDesign";
 
@@ -23,14 +25,19 @@ type LinkPhase = "scan" | "linking" | "success" | "error";
 export default function LinkGarmentScreen() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const { setNickname } = useGarmentNicknames();
   const [permission, requestPermission] = useCameraPermissions();
   const [phase, setPhase] = useState<LinkPhase>("scan");
   const [statusText, setStatusText] = useState("Scan a garment QR code to claim ownership.");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [linkedGarmentId, setLinkedGarmentId] = useState<string | null>(null);
+  const [nicknameDraft, setNicknameDraft] = useState("");
+  const [isSavingNickname, setIsSavingNickname] = useState(false);
+  const [nicknameNotice, setNicknameNotice] = useState<string | null>(null);
 
   const lastScanAtRef = useRef(0);
   const isHandlingScanRef = useRef(false);
+  const nicknameNoticeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (authLoading) {
@@ -47,6 +54,14 @@ export default function LinkGarmentScreen() {
     }
   }, [permission, requestPermission]);
 
+  useEffect(() => {
+    return () => {
+      if (nicknameNoticeTimeoutRef.current) {
+        clearTimeout(nicknameNoticeTimeoutRef.current);
+      }
+    };
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       if (phase === "success") {
@@ -61,10 +76,39 @@ export default function LinkGarmentScreen() {
     isHandlingScanRef.current = false;
     lastScanAtRef.current = 0;
     setLinkedGarmentId(null);
+    setNicknameDraft("");
+    setNicknameNotice(null);
+    if (nicknameNoticeTimeoutRef.current) {
+      clearTimeout(nicknameNoticeTimeoutRef.current);
+      nicknameNoticeTimeoutRef.current = null;
+    }
     setErrorMessage(null);
     setStatusText("Scan a garment QR code to claim ownership.");
     setPhase("scan");
   }, []);
+
+  const handleSaveNickname = useCallback(async () => {
+    if (!linkedGarmentId) {
+      return;
+    }
+
+    setIsSavingNickname(true);
+    try {
+      await setNickname(linkedGarmentId, nicknameDraft);
+      if (nicknameDraft.trim()) {
+        setNicknameNotice("New Nickname Set");
+        if (nicknameNoticeTimeoutRef.current) {
+          clearTimeout(nicknameNoticeTimeoutRef.current);
+        }
+        nicknameNoticeTimeoutRef.current = setTimeout(() => {
+          setNicknameNotice(null);
+          nicknameNoticeTimeoutRef.current = null;
+        }, 10_000);
+      }
+    } finally {
+      setIsSavingNickname(false);
+    }
+  }, [linkedGarmentId, nicknameDraft, setNickname]);
 
   const handleBarcodeScanned = useCallback(
     async (result: BarcodeScanningResult) => {
@@ -159,14 +203,40 @@ export default function LinkGarmentScreen() {
       <View style={styles.centered}>
         <Text style={styles.title}>Garment linked</Text>
         <Text style={styles.subtitle}>
-          This garment is now in your wardrobe. You can open it or scan another code.
+          Give this garment a nickname so it is easier to find in your wardrobe.
         </Text>
+        <TextInput
+          value={nicknameDraft}
+          onChangeText={setNicknameDraft}
+          placeholder="Nickname"
+          placeholderTextColor="#6B7280"
+          style={styles.nicknameInput}
+          returnKeyType="done"
+          autoCapitalize="words"
+          onSubmitEditing={() => {
+            void handleSaveNickname();
+          }}
+        />
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => void handleSaveNickname()}
+          disabled={isSavingNickname}
+          style={({ pressed }) => [
+            styles.primaryButton,
+            (pressed || isSavingNickname) && styles.pressed,
+          ]}
+        >
+          <Text style={styles.primaryButtonText}>
+            {isSavingNickname ? "Saving..." : "Save nickname"}
+          </Text>
+        </Pressable>
+        {nicknameNotice ? <Text style={styles.successText}>{nicknameNotice}</Text> : null}
         <Pressable
           accessibilityRole="button"
           onPress={() => router.replace(`/garment/${linkedGarmentId}`)}
-          style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
         >
-          <Text style={styles.primaryButtonText}>View garment</Text>
+          <Text style={styles.secondaryButtonText}>View garment</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
@@ -174,6 +244,13 @@ export default function LinkGarmentScreen() {
           style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
         >
           <Text style={styles.secondaryButtonText}>Scan another</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.replace("/(tabs)/wardrobe")}
+          style={({ pressed }) => [styles.skipButton, pressed && styles.pressed]}
+        >
+          <Text style={styles.skipButtonText}>Skip for now</Text>
         </Pressable>
       </View>
     );
@@ -238,6 +315,25 @@ const styles = StyleSheet.create({
     textAlign: "center",
     maxWidth: 300,
   },
+  nicknameInput: {
+    marginTop: 8,
+    width: "100%",
+    maxWidth: 300,
+    backgroundColor: "#030712",
+    borderWidth: 1,
+    borderColor: "#1F2937",
+    borderRadius: 12,
+    color: "#E2E8F0",
+    fontSize: 15,
+    fontWeight: "600",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  successText: {
+    color: "#86EFAC",
+    fontSize: 13,
+    fontWeight: "600",
+  },
   primaryButton: {
     marginTop: 8,
     backgroundColor: "#2563EB",
@@ -262,6 +358,16 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     color: "#E5E7EB",
     fontSize: 15,
+    fontWeight: "600",
+  },
+  skipButton: {
+    marginTop: 4,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+  },
+  skipButtonText: {
+    color: "#9CA3AF",
+    fontSize: 14,
     fontWeight: "600",
   },
   pressed: {

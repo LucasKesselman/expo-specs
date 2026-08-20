@@ -1,5 +1,6 @@
 import { Stack } from "expo-router";
 import { AuthProvider } from "../contexts/AuthContext";
+import { GarmentNicknamesProvider } from "../contexts/GarmentNicknamesContext";
 import { SelectedDigitalDesignProvider } from "../contexts/SelectedDigitalDesignContext";
 
 // Shared fallback layout for non-iOS platforms.
@@ -9,7 +10,8 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <SelectedDigitalDesignProvider>
-        <Stack screenOptions={{ headerShown: false }}>
+        <GarmentNicknamesProvider>
+          <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="(auth)" />
           <Stack.Screen
@@ -89,7 +91,8 @@ export default function RootLayout() {
               presentation: "card",
             }}
           />
-        </Stack>
+          </Stack>
+        </GarmentNicknamesProvider>
       </SelectedDigitalDesignProvider>
     </AuthProvider>
   );

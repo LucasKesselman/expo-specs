@@ -22,8 +22,11 @@ import {
   updateDoc,
 } from "firebase/firestore";
 
+import { GarmentPreviewCard } from "../../components/garment/GarmentPreviewCard";
 import { useAuth } from "../../contexts/AuthContext";
+import { useGarmentNicknames } from "../../contexts/GarmentNicknamesContext";
 import { firestore, functions } from "../../lib/firebase";
+import { fetchPhysicalDesignThumbnails } from "../../lib/hydratePhysicalDesignThumbnails";
 import { dedupeOwnedGarmentReferences } from "../../lib/ownedGarments";
 import {
   buildSavedDigitalDesignRemoveValues,
@@ -40,10 +43,9 @@ type OwnedGarmentCard = {
   id: string;
   size: string;
   color: string;
-  printStatus: string;
-  qrCodeStatus: string;
+  version: string;
   physicalDesignId: string | null;
-  digitalDesignId: string | null;
+  thumbnailUrl: string | null;
 };
 
 type LinkAppleZoomTargetModule = {
@@ -132,6 +134,7 @@ export default function DigitalDesignDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { user } = useAuth();
+  const { getNickname } = useGarmentNicknames();
   const designId = getParamAsString(params.designId);
   const initialDesign = useMemo(() => getInitialDesignFromParams(params), [params]);
   const [design, setDesign] = useState<MarketplaceDesign | null>(initialDesign);
@@ -372,32 +375,41 @@ export default function DigitalDesignDetailScreen() {
         }),
       );
 
-      setOwnedGarmentCards(
-        snapshots.map(({ garmentId, snapshot }) => {
-          if (!snapshot || !snapshot.exists()) {
-            return {
-              id: garmentId,
-              size: "Unknown",
-              color: "Unknown",
-              printStatus: "Unavailable",
-              qrCodeStatus: "Unavailable",
-              physicalDesignId: null,
-              digitalDesignId: null,
-            };
-          }
-          const data = snapshot.data();
+      const mappedCards = snapshots.map(({ garmentId, snapshot }) => {
+        if (!snapshot || !snapshot.exists()) {
           return {
             id: garmentId,
-            size: typeof data.size === "string" ? data.size : "Unknown",
-            color: typeof data.color === "string" ? data.color : "Unknown",
-            printStatus:
-              typeof data.printStatus === "string" ? data.printStatus : "Unknown",
-            qrCodeStatus:
-              typeof data.qrCodeStatus === "string" ? data.qrCodeStatus : "Unknown",
-            physicalDesignId: normalizeLinkedDocumentId(data.physicalDesign),
-            digitalDesignId: normalizeLinkedDocumentId(data.digitalDesign),
+            size: "Unknown",
+            color: "Unknown",
+            version: "N/A",
+            physicalDesignId: null,
+            thumbnailUrl: null,
           };
-        }),
+        }
+        const data = snapshot.data();
+        return {
+          id: garmentId,
+          size: typeof data.size === "string" ? data.size : "Unknown",
+          color: typeof data.color === "string" ? data.color : "Unknown",
+          version:
+            typeof data.version === "string" && data.version.trim()
+              ? data.version.trim()
+              : "N/A",
+          physicalDesignId: normalizeLinkedDocumentId(data.physicalDesign),
+          thumbnailUrl: null,
+        };
+      });
+
+      const thumbnails = await fetchPhysicalDesignThumbnails(
+        mappedCards.map((card) => card.physicalDesignId),
+      );
+      setOwnedGarmentCards(
+        mappedCards.map((card) => ({
+          ...card,
+          thumbnailUrl: card.physicalDesignId
+            ? thumbnails.get(card.physicalDesignId) ?? null
+            : null,
+        })),
       );
     } catch (error) {
       setOwnedGarmentCards([]);
@@ -616,22 +628,17 @@ export default function DigitalDesignDetailScreen() {
                   return (
                     <Pressable
                       onPress={() => setSelectedGarmentId(item.id)}
-                      style={[
-                        styles.garmentCard,
-                        isSelected ? styles.garmentCardSelected : null,
-                      ]}
+                      style={styles.pickerCardPressable}
                     >
-                      <Text numberOfLines={1} style={styles.garmentCardId}>
-                        {item.id}
-                      </Text>
-                      <Text style={styles.garmentCardLabel}>Size</Text>
-                      <Text style={styles.garmentCardValue}>{item.size}</Text>
-                      <Text style={styles.garmentCardLabel}>Color</Text>
-                      <Text style={styles.garmentCardValue}>{item.color}</Text>
-                      <Text style={styles.garmentCardLabel}>Print Status</Text>
-                      <Text style={styles.garmentCardValue}>{item.printStatus}</Text>
-                      <Text style={styles.garmentCardLabel}>QR Status</Text>
-                      <Text style={styles.garmentCardValue}>{item.qrCodeStatus}</Text>
+                      <GarmentPreviewCard
+                        garmentId={item.id}
+                        nickname={getNickname(item.id)}
+                        version={item.version}
+                        color={item.color}
+                        size={item.size}
+                        thumbnailUrl={item.thumbnailUrl}
+                        selected={isSelected}
+                      />
                     </Pressable>
                   );
                 }}
@@ -847,43 +854,14 @@ const styles = StyleSheet.create({
   },
   carousel: {
     marginTop: 14,
-    maxHeight: 280,
+    maxHeight: 380,
   },
   carouselContent: {
     gap: 10,
     paddingVertical: 4,
   },
-  garmentCard: {
+  pickerCardPressable: {
     width: CARD_WIDTH,
-    aspectRatio: 9 / 16,
-    backgroundColor: "#1F2937",
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "#374151",
-    padding: 12,
-  },
-  garmentCardSelected: {
-    borderColor: "#60A5FA",
-    backgroundColor: "#1E3A8A",
-  },
-  garmentCardId: {
-    color: "#F9FAFB",
-    fontSize: 11,
-    fontWeight: "700",
-    marginBottom: 8,
-  },
-  garmentCardLabel: {
-    color: "#9CA3AF",
-    fontSize: 10,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    marginTop: 6,
-  },
-  garmentCardValue: {
-    color: "#E5E7EB",
-    fontSize: 12,
-    fontWeight: "600",
-    marginTop: 2,
   },
   modalConfirmButton: {
     marginTop: 14,
