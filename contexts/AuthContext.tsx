@@ -4,6 +4,7 @@ import type { User } from "firebase/auth";
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   updateProfile,
@@ -26,6 +27,28 @@ interface AuthContextValue {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (profile: SignUpProfile) => Promise<void>;
   signOut: () => Promise<void>;
+  sendPasswordReset: (email: string) => Promise<void>;
+}
+
+export function getPasswordResetErrorMessage(error: unknown): string {
+  if (error && typeof error === "object" && "code" in error) {
+    const code = String((error as { code?: unknown }).code);
+    if (code === "auth/invalid-email" || code === "auth/missing-email") {
+      return "Enter a valid email address.";
+    }
+    if (code === "auth/too-many-requests") {
+      return "Too many attempts. Please try again later.";
+    }
+    if (code === "auth/network-request-failed") {
+      return "Network error. Check your connection and try again.";
+    }
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return "Unable to send password reset email. Please try again.";
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -81,6 +104,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       signOut: async () => {
         await firebaseSignOut(auth);
+      },
+      sendPasswordReset: async (email: string) => {
+        try {
+          await sendPasswordResetEmail(auth, email.trim());
+        } catch (error) {
+          if (
+            error &&
+            typeof error === "object" &&
+            "code" in error &&
+            (error as { code?: unknown }).code === "auth/user-not-found"
+          ) {
+            return;
+          }
+          throw error;
+        }
       },
     }),
     [user, loading],

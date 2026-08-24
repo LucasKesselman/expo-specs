@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Keyboard,
   KeyboardAvoidingView,
@@ -13,19 +14,29 @@ import {
   TextInput,
 } from "react-native";
 
-import { useAuth } from "../../contexts/AuthContext";
+import {
+  getPasswordResetErrorMessage,
+  useAuth,
+} from "../../contexts/AuthContext";
+
+const PASSWORD_RESET_SUCCESS_MESSAGE =
+  "If an account exists for that email, a password reset link has been sent. Check your spam folder if you do not see it.";
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { signIn } = useAuth();
+  const { signIn, sendPasswordReset } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [resetting, setResetting] = useState(false);
+
+  const isBusy = submitting || resetting;
+  const hasEmail = email.trim().length > 0;
 
   const handleLogin = async () => {
     Keyboard.dismiss();
-    if (submitting) return;
+    if (isBusy) return;
     setError(null);
     setSubmitting(true);
 
@@ -37,6 +48,22 @@ export default function LoginScreen() {
       setError(message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    Keyboard.dismiss();
+    if (isBusy || !hasEmail) return;
+    setError(null);
+    setResetting(true);
+
+    try {
+      await sendPasswordReset(email);
+      Alert.alert("Check your email", PASSWORD_RESET_SUCCESS_MESSAGE);
+    } catch (resetError) {
+      setError(getPasswordResetErrorMessage(resetError));
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -68,7 +95,7 @@ export default function LoginScreen() {
           autoCorrect={false}
           placeholder="Email"
           placeholderTextColor="#6B7280"
-          editable={!submitting}
+          editable={!isBusy}
         />
         <TextInput
           style={styles.input}
@@ -79,7 +106,7 @@ export default function LoginScreen() {
           secureTextEntry
           placeholder="Password"
           placeholderTextColor="#6B7280"
-          editable={!submitting}
+          editable={!isBusy}
           returnKeyType="done"
           onSubmitEditing={Keyboard.dismiss}
         />
@@ -89,16 +116,34 @@ export default function LoginScreen() {
         <Pressable
           style={({ pressed }) => [
             styles.submitButton,
-            (submitting || !email || !password) && styles.submitButtonDisabled,
+            (isBusy || !email || !password) && styles.submitButtonDisabled,
             pressed && styles.buttonPressed,
           ]}
           onPress={handleLogin}
-          disabled={submitting || !email || !password}
+          disabled={isBusy || !email || !password}
         >
           {submitting ? (
             <ActivityIndicator color="#111827" size="small" />
           ) : (
             <Text style={styles.submitButtonText}>Log In</Text>
+          )}
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.linkButton,
+            (isBusy || !hasEmail) && styles.submitButtonDisabled,
+            pressed && styles.buttonPressed,
+          ]}
+          onPress={() => {
+            void handleForgotPassword();
+          }}
+          disabled={isBusy || !hasEmail}
+        >
+          {resetting ? (
+            <ActivityIndicator color="#93C5FD" size="small" />
+          ) : (
+            <Text style={styles.linkButtonText}>Forgot password?</Text>
           )}
         </Pressable>
       </ScrollView>
@@ -163,6 +208,16 @@ const styles = StyleSheet.create({
     color: "#111827",
     fontSize: 16,
     fontWeight: "800",
+  },
+  linkButton: {
+    alignItems: "center",
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+  linkButtonText: {
+    color: "#93C5FD",
+    fontSize: 14,
+    fontWeight: "600",
   },
   buttonPressed: {
     opacity: 0.75,

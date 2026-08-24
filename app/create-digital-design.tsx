@@ -28,6 +28,8 @@ import { functions, storage } from "../lib/firebase";
 const PREVIEW_PLACEHOLDER_ASSET = require("../assets/artie-assets/UIStuff/ArtieSymbolBlack.png");
 const MAX_VIDEO_DURATION_MS = 5 * 60 * 1000;
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".m4v"]);
+// Set to true to restore the PUBLIC/PRIVATE marketplace toggle on this screen.
+const ALLOW_PUBLIC_MARKETPLACE_UPLOAD = false;
 
 interface AssetSlot {
   uri: string;
@@ -483,33 +485,37 @@ export default function CreateDigitalDesignScreen() {
       >
         <Text style={styles.sectionTitle}>Design Details</Text>
 
-        <Text style={styles.label}>Marketplace Status *</Text>
-        <View style={styles.statusChoiceRow}>
-          {(["PUBLIC", "PRIVATE"] as MarketplaceStatus[]).map((statusOption) => {
-            const selected = statusOption === marketplaceStatus;
-            return (
-              <Pressable
-                key={statusOption}
-                style={({ pressed }) => [
-                  styles.statusChoice,
-                  selected && styles.statusChoiceSelected,
-                  pressed && styles.statusChoicePressed,
-                ]}
-                onPress={() => setMarketplaceStatus(statusOption)}
-                disabled={isSubmitting}
-              >
-                <Text style={[styles.statusChoiceText, selected && styles.statusChoiceTextSelected]}>
-                  {statusOption}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        <Text style={styles.helpText}>
-          Sets the initial <Text style={styles.inlineCode}>marketplaceStatus</Text> value on the
-          DigitalDesigns document. PUBLIC listings appear in the marketplace; PRIVATE designs appear
-          only in your wardrobe.
-        </Text>
+        {ALLOW_PUBLIC_MARKETPLACE_UPLOAD ? (
+          <>
+            <Text style={styles.label}>Marketplace Status *</Text>
+            <View style={styles.statusChoiceRow}>
+              {(["PUBLIC", "PRIVATE"] as MarketplaceStatus[]).map((statusOption) => {
+                const selected = statusOption === marketplaceStatus;
+                return (
+                  <Pressable
+                    key={statusOption}
+                    style={({ pressed }) => [
+                      styles.statusChoice,
+                      selected && styles.statusChoiceSelected,
+                      pressed && styles.statusChoicePressed,
+                    ]}
+                    onPress={() => setMarketplaceStatus(statusOption)}
+                    disabled={isSubmitting}
+                  >
+                    <Text style={[styles.statusChoiceText, selected && styles.statusChoiceTextSelected]}>
+                      {statusOption}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Text style={styles.helpText}>
+              Sets the initial <Text style={styles.inlineCode}>marketplaceStatus</Text> value on the
+              DigitalDesigns document. PUBLIC listings appear in the marketplace; PRIVATE designs appear
+              only in your wardrobe.
+            </Text>
+          </>
+        ) : null}
 
         <Text style={styles.label}>Name *</Text>
         <TextInput

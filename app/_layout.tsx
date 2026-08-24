@@ -11,7 +11,7 @@ export default function RootLayout() {
     <AuthProvider>
       <SelectedDigitalDesignProvider>
         <GarmentNicknamesProvider>
-          <Stack screenOptions={{ headerShown: false }}>
+          <Stack screenOptions={{ headerShown: false, headerBackTitle: "Back" }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="(auth)" />
           <Stack.Screen

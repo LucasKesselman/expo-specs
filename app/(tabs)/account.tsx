@@ -24,7 +24,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useAuth } from "../../contexts/AuthContext";
+import {
+  getPasswordResetErrorMessage,
+  useAuth,
+} from "../../contexts/AuthContext";
 import { auth, functions } from "../../lib/firebase";
 import { SUPPORT_EMAIL } from "../../lib/support";
 
@@ -66,10 +69,11 @@ function getAuthErrorMessage(error: unknown): string {
 
 export default function AccountTabScreen() {
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user, signOut, sendPasswordReset } = useAuth();
   const insets = useSafeAreaInsets();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [isPasswordModalVisible, setIsPasswordModalVisible] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [deletePasswordError, setDeletePasswordError] = useState<string | null>(null);
@@ -86,7 +90,7 @@ export default function AccountTabScreen() {
     );
   }, [insets.bottom]);
 
-  const isAccountBusy = isSigningOut || isDeletingAccount;
+  const isAccountBusy = isSigningOut || isDeletingAccount || isResettingPassword;
 
   const handleCreateDigitalDesign = () => {
     if (!user) {
@@ -115,6 +119,48 @@ export default function AccountTabScreen() {
     } finally {
       setIsSigningOut(false);
     }
+  };
+
+  const sendResetEmail = async (email: string) => {
+    setIsResettingPassword(true);
+    try {
+      await sendPasswordReset(email);
+      Alert.alert(
+        "Check your email",
+        `A password reset email was sent to ${email}. Check your spam folder if you do not see it.`,
+      );
+    } catch (error) {
+      Alert.alert("Unable to reset password", getPasswordResetErrorMessage(error));
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
+  const handleResetPasswordPress = () => {
+    if (isAccountBusy) return;
+
+    const email = user?.email?.trim();
+    if (!email) {
+      Alert.alert(
+        "Unable to reset password",
+        "This account has no email address.",
+      );
+      return;
+    }
+
+    Alert.alert(
+      "Reset password",
+      `Send a password reset email to ${email}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Send email",
+          onPress: () => {
+            void sendResetEmail(email);
+          },
+        },
+      ],
+    );
   };
 
   const handleOpenSupportEmail = () => {
@@ -238,6 +284,20 @@ export default function AccountTabScreen() {
             <Text style={styles.secondaryButtonText}>
               {isSigningOut ? "Signing out..." : "Sign Out"}
             </Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              styles.secondaryButton,
+              (pressed || isAccountBusy) && styles.actionCardPressed,
+            ]}
+            onPress={handleResetPasswordPress}
+            disabled={isAccountBusy}
+          >
+            {isResettingPassword ? (
+              <ActivityIndicator color="#E5E7EB" size="small" />
+            ) : (
+              <Text style={styles.secondaryButtonText}>Reset Password</Text>
+            )}
           </Pressable>
         </View>
       ) : (
