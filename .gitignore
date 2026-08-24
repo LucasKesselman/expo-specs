@@ -39,6 +39,14 @@ functions/.runtimeconfig.json
 
 # Firebase service account (private key — keep out of git)
 scripts/serviceAccountKey.json
+
+# artieBulkTool generated artifacts
+tools/artie-bulk-tool/exports/
+tools/artie-bulk-tool/dist/
+artie-export-*.xlsx
+artie-export-*.csv
+artie-processing-report-*.xlsx
+artie-processing-report-*.csv
 .firebase/
 firebase-debug.log
 functions/lib/
