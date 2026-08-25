@@ -1,4 +1,4 @@
-import { collection, doc, getDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocFromServer } from "firebase/firestore";
 
 import { firestore } from "./firebase";
 import { firstValidImageUrl } from "./firstValidImageUrl";
@@ -18,17 +18,19 @@ export function resolvePhysicalDesignThumbnailUrl(
 
 export async function fetchPhysicalDesignThumbnails(
   physicalDesignIds: Array<string | null | undefined>,
+  options?: { fromServer?: boolean },
 ): Promise<Map<string, string>> {
   const uniqueIds = [
     ...new Set(
       physicalDesignIds.filter((id): id is string => typeof id === "string" && Boolean(id)),
     ),
   ];
+  const readDoc = options?.fromServer ? getDocFromServer : getDoc;
 
   const entries = await Promise.all(
     uniqueIds.map(async (id) => {
       try {
-        const snapshot = await getDoc(doc(collection(firestore, PHYSICAL_DESIGNS_COLLECTION), id));
+        const snapshot = await readDoc(doc(collection(firestore, PHYSICAL_DESIGNS_COLLECTION), id));
         if (!snapshot.exists()) {
           return [id, null] as const;
         }

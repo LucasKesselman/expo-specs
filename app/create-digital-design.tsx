@@ -6,10 +6,11 @@ import * as VideoThumbnails from "expo-video-thumbnails";
 import { useRouter } from "expo-router";
 import { httpsCallable } from "firebase/functions";
 import { ref, uploadBytes } from "firebase/storage";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   Image,
   Keyboard,
   KeyboardAvoidingView,
@@ -19,7 +20,11 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  UIManager,
   View,
+  type FocusEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from "react-native";
 
 import { useAuth } from "../contexts/AuthContext";
@@ -30,6 +35,13 @@ const MAX_VIDEO_DURATION_MS = 5 * 60 * 1000;
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".m4v"]);
 // Set to true to restore the PUBLIC/PRIVATE marketplace toggle on this screen.
 const ALLOW_PUBLIC_MARKETPLACE_UPLOAD = false;
+/** 12px below the header plus ~36px so the adjacent field label stays visible. */
+const FOCUSED_INPUT_TOP_MARGIN = 48;
+const FOCUSED_INPUT_BOTTOM_MARGIN = 12;
+
+type MeasurableNode = {
+  measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) => void;
+};
 
 interface AssetSlot {
   uri: string;
@@ -211,10 +223,28 @@ function getPlaceholderPreviewSlot(): AssetSlot {
   };
 }
 
+function measureNodeInWindow(
+  node: MeasurableNode | number | null,
+  callback: (x: number, y: number, width: number, height: number) => void,
+): void {
+  if (!node) return;
+  if (typeof node === "object" && typeof node.measureInWindow === "function") {
+    node.measureInWindow(callback);
+    return;
+  }
+  if (typeof node === "number") {
+    UIManager.measureInWindow(node, callback);
+  }
+}
+
 export default function CreateDigitalDesignScreen() {
   const router = useRouter();
   const headerHeight = useHeaderHeight();
   const { loading, user } = useAuth();
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollOffsetRef = useRef(0);
+  const keyboardHeightRef = useRef(0);
+  const focusedInputRef = useRef<MeasurableNode | number | null>(null);
   const [marketplaceStatus, setMarketplaceStatus] = useState<MarketplaceStatus>("PRIVATE");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -243,6 +273,81 @@ export default function CreateDigitalDesignScreen() {
       setPreviewStill(null);
     }
   }, [designAssetIsImage]);
+
+  const ensureFocusedInputInView = useCallback(() => {
+    const node = focusedInputRef.current;
+    if (!node) return;
+
+    measureNodeInWindow(node, (_x, y, width, height) => {
+      if (width === 0 && height === 0) return;
+
+      const windowHeight = Dimensions.get("window").height;
+      const topBound = headerHeight + FOCUSED_INPUT_TOP_MARGIN;
+      const bottomBound = windowHeight - keyboardHeightRef.current - FOCUSED_INPUT_BOTTOM_MARGIN;
+      let delta = 0;
+
+      if (y < topBound) {
+        delta = y - topBound;
+      } else if (y + height > bottomBound) {
+        delta = y + height - bottomBound;
+        if (y - delta < topBound) {
+          delta = y - topBound;
+        }
+      }
+
+      if (Math.abs(delta) < 1) return;
+
+      scrollRef.current?.scrollTo({
+        y: Math.max(0, scrollOffsetRef.current + delta),
+        animated: true,
+      });
+    });
+  }, [headerHeight]);
+
+  const scheduleEnsureFocusedInputInView = useCallback(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        ensureFocusedInputInView();
+      });
+    });
+  }, [ensureFocusedInputInView]);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(showEvent, (event) => {
+      keyboardHeightRef.current = event.endCoordinates.height;
+      scheduleEnsureFocusedInputInView();
+    });
+    const didShowSub =
+      Platform.OS === "ios"
+        ? Keyboard.addListener("keyboardDidShow", () => {
+            scheduleEnsureFocusedInputInView();
+          })
+        : null;
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      keyboardHeightRef.current = 0;
+    });
+
+    return () => {
+      showSub.remove();
+      didShowSub?.remove();
+      hideSub.remove();
+    };
+  }, [scheduleEnsureFocusedInputInView]);
+
+  const handleInputFocus = useCallback(
+    (event: FocusEvent) => {
+      focusedInputRef.current = event.target ?? event.nativeEvent.target;
+      scheduleEnsureFocusedInputInView();
+    },
+    [scheduleEnsureFocusedInputInView],
+  );
+
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+  }, []);
 
   const ensurePhotoLibraryPermission = useCallback(async (): Promise<boolean> => {
     let permission = await ImagePicker.getMediaLibraryPermissionsAsync();
@@ -477,11 +582,13 @@ export default function CreateDigitalDesignScreen() {
       keyboardVerticalOffset={headerHeight}
     >
       <ScrollView
+        ref={scrollRef}
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        automaticallyAdjustKeyboardInsets
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
       >
         <Text style={styles.sectionTitle}>Design Details</Text>
 
@@ -522,6 +629,7 @@ export default function CreateDigitalDesignScreen() {
           style={styles.input}
           value={name}
           onChangeText={setName}
+          onFocus={handleInputFocus}
           placeholder="e.g. Summer Bloom v2"
           placeholderTextColor="#6B7280"
           editable={!isSubmitting}
@@ -532,6 +640,7 @@ export default function CreateDigitalDesignScreen() {
           style={[styles.input, styles.multilineInput]}
           value={description}
           onChangeText={setDescription}
+          onFocus={handleInputFocus}
           placeholder="Describe the digital design"
           placeholderTextColor="#6B7280"
           editable={!isSubmitting}
@@ -546,6 +655,7 @@ export default function CreateDigitalDesignScreen() {
               style={styles.input}
               value={version}
               onChangeText={setVersion}
+              onFocus={handleInputFocus}
               placeholder="e.g. RT.2504.1"
               placeholderTextColor="#6B7280"
               editable={!isSubmitting}
@@ -556,6 +666,7 @@ export default function CreateDigitalDesignScreen() {
               style={styles.input}
               value={tagsText}
               onChangeText={setTagsText}
+              onFocus={handleInputFocus}
               placeholder="e.g. floral, summer, limited"
               placeholderTextColor="#6B7280"
               editable={!isSubmitting}
@@ -566,6 +677,7 @@ export default function CreateDigitalDesignScreen() {
               style={styles.input}
               value={priceText}
               onChangeText={setPriceText}
+              onFocus={handleInputFocus}
               placeholder="e.g. 2999"
               placeholderTextColor="#6B7280"
               keyboardType="number-pad"

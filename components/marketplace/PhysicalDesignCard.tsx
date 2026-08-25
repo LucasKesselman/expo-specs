@@ -19,7 +19,8 @@ export function PhysicalDesignCard({ design }: PhysicalDesignCardProps) {
           <Image
             source={{ uri: previewImageUrl as string }}
             style={styles.backgroundImage}
-            contentFit="cover"
+            contentFit="contain"
+            contentPosition="center"
             transition={180}
             cachePolicy="memory-disk"
           />
@@ -56,6 +57,7 @@ export function PhysicalDesignCard({ design }: PhysicalDesignCardProps) {
 
 const styles = StyleSheet.create({
   cardContainer: {
+    width: "100%",
     aspectRatio: 9 / 16,
     borderRadius: 12,
     borderWidth: 1,
@@ -65,12 +67,14 @@ const styles = StyleSheet.create({
   },
   imageBackground: {
     flex: 1,
+    width: "100%",
   },
   backgroundImage: {
-    ...StyleSheet.absoluteFillObject,
+    width: "100%",
+    height: "100%",
   },
   overlay: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     padding: 12,
     backgroundColor: "rgba(3, 7, 18, 0.62)",
     justifyContent: "space-between",

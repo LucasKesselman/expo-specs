@@ -1,13 +1,10 @@
 import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
-import { collection, doc, getDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocFromServer } from "firebase/firestore";
 import { useCallback, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
   Platform,
   Pressable,
-  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -16,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { GarmentPreviewCard } from "../../components/garment/GarmentPreviewCard";
 import { DigitalDesignCard } from "../../components/marketplace/DigitalDesignCard";
+import { PullToRefreshFlatList } from "../../components/PullToRefreshFlatList";
 import { useAuth } from "../../contexts/AuthContext";
 import { useGarmentNicknames } from "../../contexts/GarmentNicknamesContext";
 import { firestore } from "../../lib/firebase";
@@ -140,7 +138,7 @@ export default function WardrobeScreen() {
         FALLBACK_ACCESSORY_SPACING +
         insets.bottom;
 
-  const loadSavedDesigns = useCallback(async () => {
+  const loadSavedDesigns = useCallback(async (refresh = false) => {
     if (!user) {
       setSavedDesigns([]);
       setDesignsErrorMessage(null);
@@ -148,11 +146,14 @@ export default function WardrobeScreen() {
       return;
     }
 
-    setIsLoadingDesigns(true);
+    if (!refresh) {
+      setIsLoadingDesigns(true);
+    }
     setDesignsErrorMessage(null);
+    const readDoc = refresh ? getDocFromServer : getDoc;
 
     try {
-      const userSnapshot = await getDoc(doc(firestore, USERS_COLLECTION, user.uid));
+      const userSnapshot = await readDoc(doc(firestore, USERS_COLLECTION, user.uid));
       if (!userSnapshot.exists()) {
         setSavedDesigns([]);
         return;
@@ -167,11 +168,11 @@ export default function WardrobeScreen() {
       const designSnapshots = await Promise.all(
         refs.map(async (ref) => {
           try {
-            const snapshot = await getDoc(doc(firestore, ref.path));
+            const snapshot = await readDoc(doc(firestore, ref.path));
             if (snapshot.exists()) {
               return snapshot;
             }
-            return getDoc(doc(collection(firestore, DIGITAL_DESIGNS_COLLECTION), ref.id));
+            return readDoc(doc(collection(firestore, DIGITAL_DESIGNS_COLLECTION), ref.id));
           } catch {
             return null;
           }
@@ -187,7 +188,9 @@ export default function WardrobeScreen() {
 
       setSavedDesigns(designs);
     } catch {
-      setSavedDesigns([]);
+      if (!refresh) {
+        setSavedDesigns([]);
+      }
       setDesignsErrorMessage("We couldn't load your digital designs right now.");
     } finally {
       setIsLoadingDesigns(false);
@@ -196,9 +199,7 @@ export default function WardrobeScreen() {
 
   const loadOwnedGarments = useCallback(
     async (refresh = false) => {
-      if (refresh) {
-        setIsRefreshing(true);
-      } else {
+      if (!refresh) {
         setIsLoadingGarments(true);
       }
 
@@ -206,15 +207,15 @@ export default function WardrobeScreen() {
         setOwnedGarments([]);
         setGarmentsErrorMessage(null);
         setIsLoadingGarments(false);
-        setIsRefreshing(false);
         return;
       }
 
       setGarmentsErrorMessage(null);
+      const readDoc = refresh ? getDocFromServer : getDoc;
 
       try {
         const userRef = doc(collection(firestore, USERS_COLLECTION), user.uid);
-        const userSnapshot = await getDoc(userRef);
+        const userSnapshot = await readDoc(userRef);
 
         if (!userSnapshot.exists()) {
           setOwnedGarments([]);
@@ -250,13 +251,13 @@ export default function WardrobeScreen() {
           ownedGarmentReferences.map(async ({ garmentId, garmentPath }) => {
             try {
               if (garmentPath) {
-                const pathSnapshot = await getDoc(doc(firestore, garmentPath));
+                const pathSnapshot = await readDoc(doc(firestore, garmentPath));
                 if (pathSnapshot.exists()) {
                   return { garmentId, snapshot: pathSnapshot };
                 }
               }
 
-              const fallbackSnapshot = await getDoc(
+              const fallbackSnapshot = await readDoc(
                 doc(collection(firestore, GARMENTS_COLLECTION), garmentId),
               );
               return { garmentId, snapshot: fallbackSnapshot };
@@ -323,6 +324,7 @@ export default function WardrobeScreen() {
 
         const thumbnails = await fetchPhysicalDesignThumbnails(
           garmentCards.map((card) => card.physicalDesignId),
+          { fromServer: refresh },
         );
         setOwnedGarments(
           garmentCards.map((card) => ({
@@ -333,11 +335,12 @@ export default function WardrobeScreen() {
           })),
         );
       } catch {
-        setOwnedGarments([]);
+        if (!refresh) {
+          setOwnedGarments([]);
+        }
         setGarmentsErrorMessage("We couldn't load your garments right now.");
       } finally {
         setIsLoadingGarments(false);
-        setIsRefreshing(false);
       }
     },
     [user],
@@ -372,7 +375,7 @@ export default function WardrobeScreen() {
   const refreshWardrobe = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      await Promise.all([loadOwnedGarments(false), loadSavedDesigns()]);
+      await Promise.all([loadOwnedGarments(true), loadSavedDesigns(true)]);
     } finally {
       setIsRefreshing(false);
     }
@@ -386,7 +389,7 @@ export default function WardrobeScreen() {
       {designsErrorMessage && savedDesigns.length > 0 ? (
         <Text style={styles.errorText}>{designsErrorMessage}</Text>
       ) : null}
-      <FlatList
+      <PullToRefreshFlatList
         style={styles.list}
         data={ownedGarments}
         numColumns={2}
@@ -434,14 +437,13 @@ export default function WardrobeScreen() {
           listBottomInset != null ? { paddingBottom: listBottomInset } : null,
         ]}
         columnWrapperStyle={ownedGarments.length > 0 ? styles.columnWrapper : undefined}
+        refreshing={isRefreshing}
+        onRefresh={() => {
+          void refreshWardrobe();
+        }}
+        progressViewOffset={listTopInset}
         ListHeaderComponent={
           <View>
-            {isRefreshing ? (
-              <View style={styles.refreshIndicatorContainer}>
-                <ActivityIndicator size="small" color="#93C5FD" />
-              </View>
-            ) : null}
-
             <View style={styles.sectionBlock}>
               <Text style={styles.sectionTitle}>My Digital Designs</Text>
               <View style={styles.filterRow}>
@@ -531,17 +533,6 @@ export default function WardrobeScreen() {
             ) : null}
           </View>
         }
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={() => {
-              void refreshWardrobe();
-            }}
-            tintColor="#93C5FD"
-            colors={["#93C5FD"]}
-            progressBackgroundColor="#111827"
-          />
-        }
         ListEmptyComponent={
           hasAnyContent ? (
             <View style={styles.inlineEmptyCard}>
@@ -593,11 +584,6 @@ const styles = StyleSheet.create({
     flexBasis: "48%",
     maxWidth: "48%",
     marginBottom: 12,
-  },
-  refreshIndicatorContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingBottom: 8,
   },
   sectionBlock: {
     marginBottom: 8,

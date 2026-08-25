@@ -10,6 +10,8 @@ import { firestore } from "../../lib/firebase";
 import { mapFirestoreDocToMarketplaceDesign, type MarketplaceDesign } from "../../types/marketplaceDesign";
 
 const PHYSICAL_DESIGNS_COLLECTION_CANDIDATES = ["PhysicalDesigns"] as const;
+// Set to true to restore the Buy with Stripe Checkout button on this screen.
+const ALLOW_STRIPE_CHECKOUT_BUTTON = false;
 type LinkAppleZoomTargetModule = {
   AppleZoomTarget?: ComponentType<{ children: ReactNode }>;
 };
@@ -193,39 +195,41 @@ export default function PhysicalDesignDetailScreen() {
         <Text style={styles.metaValue}>{design?.createdAt ?? "N/A"}</Text>
       </View>
 
-      <Pressable
-        onPress={() => {
-          Alert.alert("Error", "not released. yet");
-          // if (loading) {
-          //   return;
-          // }
+      {ALLOW_STRIPE_CHECKOUT_BUTTON ? (
+        <Pressable
+          onPress={() => {
+            Alert.alert("Error", "not released. yet");
+            // if (loading) {
+            //   return;
+            // }
 
-          // if (!user) {
-          //   router.replace("/(auth)/landing");
-          //   return;
-          // }
+            // if (!user) {
+            //   router.replace("/(auth)/landing");
+            //   return;
+            // }
 
-          // router.push({
-          //   pathname: "/physical-cart",
-          //   params: {
-          //     designId: design?.sourceDocId ?? designId,
-          //     collection: design?.sourceCollection ?? getParamAsString(params.collection),
-          //     name: design?.name ?? "",
-          //     description: design?.description ?? "",
-          //     fullImageUrl: design?.fullImageUrl ?? "",
-          //     thumbnailUrl: design?.thumbnailUrl ?? "",
-          //     miniImageUrl: design?.miniImageUrl ?? "",
-          //   },
-          // });
-        }}
-        style={({ pressed }) => [styles.buyButton, pressed && styles.buyButtonPressed]}
-        // style={({ pressed }) => [styles.buyButton, (pressed || loading) && styles.buyButtonPressed]}
-      >
-        <Text style={styles.buyButtonText}>
-          Buy with Stripe Checkout
-          {/* {loading ? "Checking account..." : "Buy with Stripe Checkout"} */}
-        </Text>
-      </Pressable>
+            // router.push({
+            //   pathname: "/physical-cart",
+            //   params: {
+            //     designId: design?.sourceDocId ?? designId,
+            //     collection: design?.sourceCollection ?? getParamAsString(params.collection),
+            //     name: design?.name ?? "",
+            //     description: design?.description ?? "",
+            //     fullImageUrl: design?.fullImageUrl ?? "",
+            //     thumbnailUrl: design?.thumbnailUrl ?? "",
+            //     miniImageUrl: design?.miniImageUrl ?? "",
+            //   },
+            // });
+          }}
+          style={({ pressed }) => [styles.buyButton, pressed && styles.buyButtonPressed]}
+          // style={({ pressed }) => [styles.buyButton, (pressed || loading) && styles.buyButtonPressed]}
+        >
+          <Text style={styles.buyButtonText}>
+            Buy with Stripe Checkout
+            {/* {loading ? "Checking account..." : "Buy with Stripe Checkout"} */}
+          </Text>
+        </Pressable>
+      ) : null}
 
       {isHydrating ? (
         <View style={styles.loadingRow}>

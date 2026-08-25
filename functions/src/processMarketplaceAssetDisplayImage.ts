@@ -96,7 +96,7 @@ function derivativeOutputBuffer(
 ): Promise<Buffer> {
   const pipeline = sharp(sourceBuffer).rotate().resize(derivative.width, derivative.height, {
     fit: "cover",
-    position: "attention",
+    position: "center",
     withoutEnlargement: false,
   });
 

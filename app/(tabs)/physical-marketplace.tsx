@@ -2,23 +2,21 @@ import { useCallback, useEffect, useRef, useState, type ComponentType, type Reac
 import { Link } from "expo-router";
 import { Image as ExpoImage } from "expo-image";
 import {
-  ActivityIndicator,
   Animated,
   Easing,
-  FlatList,
   Image,
   Platform,
   Pressable,
-  RefreshControl,
   StyleSheet,
   Text,
   View,
   type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { collection, getDocs, type DocumentData, type QueryDocumentSnapshot } from "firebase/firestore";
+import { collection, getDocs, getDocsFromServer, type DocumentData, type QueryDocumentSnapshot } from "firebase/firestore";
 
 import { PhysicalDesignCard } from "../../components/marketplace/PhysicalDesignCard";
+import { PullToRefreshFlatList } from "../../components/PullToRefreshFlatList";
 import { firestore } from "../../lib/firebase";
 import { mapFirestoreDocToMarketplaceDesign, type MarketplaceDesign } from "../../types/marketplaceDesign";
 
@@ -86,16 +84,19 @@ export default function PhysicalMarketplaceTabScreen() {
       setIsLoading(true);
     }
 
-    setErrorMessage(null);
+    if (!refresh) {
+      setErrorMessage(null);
+    }
 
     try {
       const uniqueDesigns = new Map<string, MarketplaceDesign>();
       let loadedAtLeastOneCollection = false;
       let permissionDeniedCount = 0;
+      const readDocs = refresh ? getDocsFromServer : getDocs;
 
       for (const collectionName of PHYSICAL_DESIGNS_COLLECTION_CANDIDATES) {
         try {
-          const snapshot = await getDocs(collection(firestore, collectionName));
+          const snapshot = await readDocs(collection(firestore, collectionName));
           const sortedDocs = [...snapshot.docs].sort((a, b) => getSortTimestamp(b) - getSortTimestamp(a));
           loadedAtLeastOneCollection = true;
 
@@ -126,6 +127,7 @@ export default function PhysicalMarketplaceTabScreen() {
       }
 
       setDesigns(Array.from(uniqueDesigns.values()));
+      setErrorMessage(null);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to load physical designs.");
     } finally {
@@ -185,7 +187,7 @@ export default function PhysicalMarketplaceTabScreen() {
     <View style={styles.screenContainer}>
       {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
 
-      <FlatList
+      <PullToRefreshFlatList
         style={styles.list}
         data={designs}
         numColumns={2}
@@ -231,24 +233,11 @@ export default function PhysicalMarketplaceTabScreen() {
           listBottomInset != null ? { paddingBottom: listBottomInset } : null,
         ]}
         columnWrapperStyle={designs.length > 0 ? styles.columnWrapper : undefined}
-        ListHeaderComponent={
-          isRefreshing ? (
-            <View style={styles.refreshIndicatorContainer}>
-              <ActivityIndicator size="small" color="#93C5FD" />
-            </View>
-          ) : null
-        }
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={() => {
-              void loadPhysicalDesigns(true);
-            }}
-            tintColor="#93C5FD"
-            colors={["#93C5FD"]}
-            progressBackgroundColor="#111827"
-          />
-        }
+        refreshing={isRefreshing}
+        onRefresh={() => {
+          void loadPhysicalDesigns(true);
+        }}
+        progressViewOffset={listTopInset}
         ListEmptyComponent={
           <View style={styles.emptyStateContainer}>
             <Image
@@ -311,11 +300,6 @@ const styles = StyleSheet.create({
   cardPressable: {
     borderRadius: 12,
   } satisfies ViewStyle,
-  refreshIndicatorContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingBottom: 8,
-  },
   emptyListContentContainer: {
     flexGrow: 1,
     alignItems: "center",
