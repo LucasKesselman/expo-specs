@@ -28,7 +28,7 @@ import {
 
 const PHYSICAL_DESIGNS_COLLECTION_CANDIDATES = ["PhysicalDesigns"] as const;
 // Set to true to restore the Buy with Stripe Checkout button on this screen.
-const ALLOW_STRIPE_CHECKOUT_BUTTON = true;
+const ALLOW_STRIPE_CHECKOUT_BUTTON = false;
 type LinkAppleZoomTargetModule = {
   AppleZoomTarget?: ComponentType<{ children: ReactNode }>;
 };
