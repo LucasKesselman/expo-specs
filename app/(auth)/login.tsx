@@ -1,4 +1,3 @@
-import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -18,12 +17,12 @@ import {
   getPasswordResetErrorMessage,
   useAuth,
 } from "../../contexts/AuthContext";
+import { exitAuthTo } from "../../lib/exitAuth";
 
 const PASSWORD_RESET_SUCCESS_MESSAGE =
   "If an account exists for that email, a password reset link has been sent. Check your spam folder if you do not see it.";
 
 export default function LoginScreen() {
-  const router = useRouter();
   const { signIn, sendPasswordReset } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -42,7 +41,7 @@ export default function LoginScreen() {
 
     try {
       await signIn(email, password);
-      router.replace("/(tabs)/account");
+      exitAuthTo("/(tabs)/account");
     } catch (loginError) {
       const message = loginError instanceof Error ? loginError.message : "Failed to log in.";
       setError(message);

@@ -28,6 +28,7 @@ import { buildImportPlan } from "./import/planBuilder.js";
 import { logger } from "./logging.js";
 import { flattenDoc } from "./mapping/flatten.js";
 import { inferFieldPaths } from "./mapping/schema.js";
+import { runGenerateInventoryGarments } from "./inventory/run.js";
 import { writeProcessingReport } from "./report/processingReport.js";
 import type { ColumnCheckMode, ProcessingMode, RecordUpdateMode } from "./types.js";
 
@@ -200,7 +201,7 @@ async function main(): Promise<void> {
   const program = new Command();
   program
     .name("artieBulkTool")
-    .description("Internal Firestore Excel export/import CLI (Firebase Admin SDK).")
+    .description("Internal Firestore export/import and inventory garment CLI (Firebase Admin SDK).")
     .showHelpAfterError();
 
   program
@@ -254,6 +255,34 @@ async function main(): Promise<void> {
         allowUnlistedCollection?: boolean;
       }) => {
         await runImport(opts);
+      },
+    );
+
+  program
+    .command("generateInventoryGarments")
+    .description("Preview or invoke generateInventoryGarments to create unassigned Garments and QR codes")
+    .requiredOption("--physicalDesignId <id>", "PhysicalDesigns document id")
+    .requiredOption("--backprintVersion <version>", "Backprint suffix appended to designNumber (e.g. 00)")
+    .option("--quantity <n>", "Number of garments to create (use with --size)")
+    .option("--size <size>", "Garment size: XS, S, M, L, XL, or XXL")
+    .option("--quantitySize <value>", 'Combined quantity and size, e.g. "50, L"')
+    .addOption(
+      new Option("--processingMode <mode>", "Dry-run or call generateInventoryGarments")
+        .choices(PROCESSING_MODES)
+        .makeOptionMandatory(),
+    )
+    .option("--output <dir>", "Directory for the inventory report", DEFAULT_OUTPUT_DIR)
+    .action(
+      async (opts: {
+        physicalDesignId: string;
+        backprintVersion: string;
+        quantity?: string;
+        size?: string;
+        quantitySize?: string;
+        processingMode: ProcessingMode;
+        output: string;
+      }) => {
+        await runGenerateInventoryGarments(opts);
       },
     );
 

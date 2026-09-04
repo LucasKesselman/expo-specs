@@ -1,4 +1,3 @@
-import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -14,9 +13,9 @@ import {
 } from "react-native";
 
 import { useAuth } from "../../contexts/AuthContext";
+import { exitAuthTo } from "../../lib/exitAuth";
 
 export default function SignupScreen() {
-  const router = useRouter();
   const { signUp } = useAuth();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -67,7 +66,7 @@ export default function SignupScreen() {
         firstName,
         lastName,
       });
-      router.replace("/(tabs)/account");
+      exitAuthTo("/(tabs)/account");
     } catch (signupError) {
       const message = signupError instanceof Error ? signupError.message : "Failed to create account.";
       setError(message);

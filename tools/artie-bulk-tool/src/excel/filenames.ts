@@ -15,3 +15,7 @@ export function buildReportFilename(
 ): string {
   return `artie-processing-report-${collection}-${processingMode}-${recordUpdateMode}-${formatRunTimestamp(date)}.csv`;
 }
+
+export function buildInventoryReportFilename(processingMode: string, date = new Date()): string {
+  return `artie-inventory-garments-${processingMode}-${formatRunTimestamp(date)}.csv`;
+}

@@ -29,6 +29,12 @@ import {
 
 import { useAuth } from "../contexts/AuthContext";
 import { functions, storage } from "../lib/firebase";
+import {
+  isRasterImageUpload,
+  normalizeImageForUpload,
+  orientationNormalizedUploadMetadata,
+  portraitVideoStillRotateDegrees,
+} from "../lib/normalizeImageForUpload";
 
 const PREVIEW_PLACEHOLDER_ASSET = require("../assets/artie-assets/UIStuff/ArtieSymbolBlack.png");
 const MAX_VIDEO_DURATION_MS = 5 * 60 * 1000;
@@ -47,6 +53,9 @@ interface AssetSlot {
   uri: string;
   name: string;
   mimeType: string;
+  width?: number;
+  height?: number;
+  orientationNormalized?: boolean;
 }
 
 type MarketplaceStatus = "PUBLIC" | "PRIVATE";
@@ -194,20 +203,34 @@ async function getVideoDurationMsFromUri(uri: string): Promise<number | null> {
   }
 }
 
-async function generatePreviewStillFromVideo(videoUri: string): Promise<AssetSlot | null> {
+async function generatePreviewStillFromVideo(
+  videoUri: string,
+  videoDisplaySize?: { width?: number | null; height?: number | null },
+): Promise<AssetSlot | null> {
+  let thumbnail: { uri: string; width: number; height: number };
   try {
-    const { uri } = await VideoThumbnails.getThumbnailAsync(videoUri, {
+    thumbnail = await VideoThumbnails.getThumbnailAsync(videoUri, {
       time: 0,
       quality: 0.9,
     });
-    return {
-      uri,
-      name: `previewStill-${Date.now()}.jpg`,
-      mimeType: "image/jpeg",
-    };
   } catch {
     return null;
   }
+
+  const rotateDegrees = portraitVideoStillRotateDegrees(
+    videoDisplaySize?.width,
+    videoDisplaySize?.height,
+    thumbnail.width,
+    thumbnail.height,
+  );
+
+  return normalizeImageForUpload({
+    uri: thumbnail.uri,
+    name: `previewStill-${Date.now()}.jpg`,
+    mimeType: "image/jpeg",
+    format: "jpeg",
+    rotateDegrees,
+  });
 }
 
 function getPlaceholderPreviewSlot(): AssetSlot {
@@ -385,13 +408,17 @@ export default function CreateDigitalDesignScreen() {
         }
         const videoSlot = assetSlotFromVideoPick(picked.uri, picked.fileName, picked.mimeType);
         // Generate still before committing designAsset so Create cannot submit a stale still.
-        const still = await generatePreviewStillFromVideo(picked.uri);
+        const still = await generatePreviewStillFromVideo(picked.uri, {
+          width: picked.width,
+          height: picked.height,
+        });
         setDesignAsset(videoSlot);
         setPreviewStill(still);
         return;
       }
 
-      setDesignAsset(assetSlotFromCompatiblePhotoPick(picked, "designAsset"));
+      const named = assetSlotFromCompatiblePhotoPick(picked, "designAsset");
+      setDesignAsset(await normalizeImageForUpload(named));
     } catch {
       Alert.alert("Picker Error", "Could not pick a photo or video for Design Asset.");
     }
@@ -421,6 +448,12 @@ export default function CreateDigitalDesignScreen() {
         return;
       }
 
+      if (isRasterImageUpload(slot.mimeType, slot.name)) {
+        setDesignAsset(await normalizeImageForUpload(slot));
+        setPreviewStill(null);
+        return;
+      }
+
       setDesignAsset(slot);
       setPreviewStill(null);
     } catch {
@@ -441,7 +474,11 @@ export default function CreateDigitalDesignScreen() {
           ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
       });
       if (result.canceled || result.assets.length === 0) return;
-      setPreviewStill(assetSlotFromCompatiblePhotoPick(result.assets[0], "previewStill"));
+      setPreviewStill(
+        await normalizeImageForUpload(
+          assetSlotFromCompatiblePhotoPick(result.assets[0], "previewStill"),
+        ),
+      );
     } catch {
       Alert.alert("Picker Error", "Could not pick a preview still.");
     }
@@ -462,7 +499,10 @@ export default function CreateDigitalDesignScreen() {
     // Flat staging path (same layout as physical create): _temp/{uid}/{key}{ext}
     const storagePath = `_temp/${uid}/${key}${extensionFromFileName(slot.name)}`;
     const fileRef = ref(storage, storagePath);
-    await uploadBytes(fileRef, blob, { contentType: slot.mimeType });
+    await uploadBytes(fileRef, blob, {
+      contentType: slot.mimeType,
+      ...orientationNormalizedUploadMetadata(slot.orientationNormalized),
+    });
     return storagePath;
   }, []);
 

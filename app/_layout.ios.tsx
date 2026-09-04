@@ -3,6 +3,10 @@ import { AuthProvider } from "../contexts/AuthContext";
 import { GarmentNicknamesProvider } from "../contexts/GarmentNicknamesContext";
 import { SelectedDigitalDesignProvider } from "../contexts/SelectedDigitalDesignContext";
 
+export const unstable_settings = {
+  initialRouteName: "(tabs)",
+};
+
 export default function RootLayoutIOS() {
   return (
     <AuthProvider>

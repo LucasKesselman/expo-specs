@@ -1,12 +1,13 @@
 # artieBulkTool
 
-Internal admin CLI for Firestore CSV export/import. Runs **only** on an operator machine via terminal. Uses the Firebase Admin SDK (bypasses client security rules). It is not part of the Expo app or the Cloud Functions deploy.
+Internal admin CLI for Firestore CSV export/import and inventory garment creation. Runs **only** on an operator machine via terminal. Uses the Firebase Admin SDK (bypasses client security rules). Inventory writes and QR generation stay in the `generateInventoryGarments` Cloud Function; this tool is a wrapper around that endpoint. It is not part of the Expo app or the Cloud Functions deploy.
 
 ## Setup
 
-1. Copy `.env.example` to `.env` in this folder (optional).
+1. Copy `.env.example` to `.env` in this folder (optional for export/import; required for `generateInventoryGarments --processingMode=active`).
 2. Point `GOOGLE_APPLICATION_CREDENTIALS` at a service account JSON key. Relative paths resolve from `tools/artie-bulk-tool/`. If unset, the tool uses `scripts/serviceAccountKey.json` at the repo root, then Application Default Credentials.
-3. Install this package once:
+3. For inventory generation, set `GENERATE_INVENTORY_GARMENTS_URL` to the function’s Cloud Run URL (`https://generateinventorygarments-<hash>-uc.a.run.app`). The same service account needs **Cloud Run Invoker** on that function; Firestore Admin access is not enough. Optional `GENERATE_INVENTORY_GARMENTS_AUDIENCE` only if the OIDC audience must differ from the URL.
+4. Install this package once:
 
 ```bash
 npm install --prefix tools/artie-bulk-tool
@@ -28,6 +29,14 @@ npm run artieBulkTool -- import --collection=DigitalDesigns --input="$HOME/Downl
 
 Or from this folder: `npm run artieBulkTool -- export --collection=DigitalDesigns`.
 
+```bash
+npm run artieBulkTool -- generateInventoryGarments \
+  --physicalDesignId=abc123 \
+  --quantity=50 --size=L \
+  --backprintVersion=00 \
+  --processingMode=pretend
+```
+
 ### Export
 
 Fetches every document in a top-level collection (paginated), flattens nested fields, and writes to your **Downloads** folder (`~/Downloads`):
@@ -44,12 +53,45 @@ Parses the sheet, matches rows to documents, diffs fields, always writes a proce
 
 Reports go to your **Downloads** folder (`~/Downloads`) unless you pass `--output=<dir>`. CSV rows use a `section` column (`run`, `summary`, `diff`, `error`) in place of separate sheets.
 
+### generateInventoryGarments
+
+Operator wrapper around the private `generateInventoryGarments` HTTP function. Validates flags locally, loads the PhysicalDesign (for `designNumber` / `version` / `color`), then either writes a preview report or POSTs to the function.
+
+```bash
+# Combined quantity/size (same as the function body)
+npm run artieBulkTool -- generateInventoryGarments \
+  --physicalDesignId=abc123 \
+  --quantitySize="50, L" \
+  --backprintVersion=00 \
+  --processingMode=active
+```
+
+Flags:
+
+- `--physicalDesignId` (required)
+- `--backprintVersion` (required) — appended to the design’s `designNumber` (e.g. `2601G` + `00` → `2601G00`)
+- `--quantity` and `--size` together, or `--quantitySize="50, L"` (explicit quantity+size win if both are passed)
+- `--processingMode` (required): `pretend` or `active`
+- `--output` — report directory (default `~/Downloads`)
+
+Quantity is a positive integer up to 500. Size is `XS|S|M|L|XL|XXL`.
+
+`pretend` never calls the function. `active` prompts:
+
+```text
+⚠️ This will create 50 Garments for PhysicalDesign abc123 (version 2601G00, size L) and generate QR codes. Proceed? (y/n)
+```
+
+Only `y` / `Y` continues. The function creates the Garments and QR codes; this CLI does not write those docs itself.
+
+Report: `artie-inventory-garments-[processingMode]-[yyyyMMdd-HHmmss].csv` with `run`, `summary`, `garment` (ids on active), and `error` sections.
+
 ## Modes
 
 `--processingMode` (required; omitting it exits with an error)
 
-- `pretend` — parse, match, diff; no Firestore writes
-- `active` — apply creates/updates/deletes with BulkWriter
+- `pretend` — parse, match, diff; no Firestore writes. For `generateInventoryGarments`, preview only (no HTTP call).
+- `active` — apply creates/updates/deletes with BulkWriter. For `generateInventoryGarments`, confirm then POST to the Cloud Function.
 
 `--recordUpdateMode`
 

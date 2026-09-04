@@ -3,6 +3,8 @@ import admin from "firebase-admin";
 import { logger } from "firebase-functions/logger";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 
+import { copyFileAutoOrientingRaster } from "./copyRasterWithAutoOrient";
+
 const REGION = "us-central1";
 const PHYSICAL_DESIGNS_COLLECTION = "PhysicalDesigns";
 const MARKETPLACE_ASSETS_BUCKET = "marketplace-assets-bucket";
@@ -177,13 +179,17 @@ export const createPhysicalDesign = onCall({ region: REGION }, async (request) =
     const frontTargetDestination = arAssetsBucket.file(
       `${PHYSICAL_DESIGNS_COLLECTION}/${designId}/Targets/Raw/frontTargetImage.png`,
     );
-    await frontTargetSource.copy(frontTargetDestination);
+    await copyFileAutoOrientingRaster(frontTargetSource, frontTargetDestination, {
+      forceFormat: "png",
+    });
     cleanupFiles.push(frontTargetDestination);
 
     const backTargetDestination = arAssetsBucket.file(
       `${PHYSICAL_DESIGNS_COLLECTION}/${designId}/Targets/Raw/backTargetImage.png`,
     );
-    await backTargetSource.copy(backTargetDestination);
+    await copyFileAutoOrientingRaster(backTargetSource, backTargetDestination, {
+      forceFormat: "png",
+    });
     cleanupFiles.push(backTargetDestination);
 
     logger.info("Created physical design and promoted staged assets", {

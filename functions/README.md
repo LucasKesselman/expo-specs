@@ -58,6 +58,8 @@ Session docs should include:
 
 Ops inventory creation (not the Stripe checkout path). Creates many `Garments` docs with Firestore auto-IDs, leaves `owner` and `digitalDesign` unset, then generates QR PNGs via `generateGarmentQRCodesForGarments`.
 
+The supported operator entrypoint is `artieBulkTool generateInventoryGarments` (see `tools/artie-bulk-tool/README.md`). Curl remains for emergencies. The function runs with `timeoutSeconds: 540` and `memory: 1GiB` so a full 500-garment QR pass can finish.
+
 ### Request
 
 - Method: `POST`
@@ -107,6 +109,8 @@ Ops inventory creation (not the Stripe checkout path). Creates many `Garments` d
 - Caller must have **Cloud Run Invoker** and send an OIDC identity token (`gcloud auth print-identity-token`), not a Firebase ID token.
 
 ### Example curl
+
+Prefer the bulk tool for day-to-day ops. Curl:
 
 ```bash
 # Requires: gcloud auth login (or ADC) + Cloud Run Invoker on the function

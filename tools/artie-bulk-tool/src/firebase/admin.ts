@@ -17,7 +17,7 @@ export interface AdminContext {
   projectId: string;
 }
 
-function resolveCredentialPath(): string | undefined {
+export function resolveCredentialPath(): string | undefined {
   const fromEnv = process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim();
   if (fromEnv) {
     return path.isAbsolute(fromEnv) ? fromEnv : path.resolve(TOOL_ROOT, fromEnv);

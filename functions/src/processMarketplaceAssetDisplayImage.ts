@@ -5,6 +5,12 @@ import { logger } from "firebase-functions/logger";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
 import sharp from "sharp";
 
+import {
+  autoOrientImageBuffer,
+  hasNonUprightOrientation,
+  ORIENTATION_NORMALIZED_METADATA_KEY,
+} from "./autoOrientImage";
+
 const REGION = "us-central1";
 const MARKETPLACE_ASSETS_BUCKET = "marketplace-assets-bucket";
 const FUNCTION_NAME = "processMarketplaceAssetDisplayImage";
@@ -94,7 +100,7 @@ function derivativeOutputBuffer(
   sourceBuffer: Buffer,
   derivative: (typeof DERIVATIVES)[number],
 ): Promise<Buffer> {
-  const pipeline = sharp(sourceBuffer).rotate().resize(derivative.width, derivative.height, {
+  const pipeline = sharp(sourceBuffer).autoOrient().resize(derivative.width, derivative.height, {
     fit: "cover",
     position: "center",
     withoutEnlargement: false,
@@ -148,6 +154,12 @@ export const processMarketplaceAssetDisplayImage = onObjectFinalized(
       return;
     }
 
+    const customMetadata = object.metadata ?? {};
+    if (customMetadata[ORIENTATION_NORMALIZED_METADATA_KEY] === "true") {
+      logger.info("Skipping already orientation-normalized original", { path, bucketName });
+      return;
+    }
+
     if (!contentType.startsWith("image/")) {
       logger.warn("Skipping non-image source object", { path, contentType, bucketName });
       return;
@@ -197,6 +209,18 @@ export const processMarketplaceAssetDisplayImage = onObjectFinalized(
       await setOriginalMetadataStatus(sourceFile, STATUS.PROCESSING, generation);
 
       const [sourceBuffer] = await sourceFile.download();
+      const sourceImageMetadata = await sharp(sourceBuffer).metadata();
+      if (hasNonUprightOrientation(sourceImageMetadata.orientation)) {
+        logger.info("Source image has non-upright EXIF orientation", {
+          collectionName: parsed.collectionName,
+          designId: parsed.designId,
+          sourcePath: parsed.sourcePath,
+          orientation: sourceImageMetadata.orientation,
+          width: sourceImageMetadata.width,
+          height: sourceImageMetadata.height,
+        });
+      }
+
       const derivativePathMap: Record<string, string> = {};
       const derivativeTokenMap: Record<string, string> = {};
 
@@ -239,11 +263,50 @@ export const processMarketplaceAssetDisplayImage = onObjectFinalized(
         derivativeTokenMap.card,
       );
 
+      let originalRewritten = false;
+      try {
+        const orientedOriginal = await autoOrientImageBuffer(sourceBuffer);
+        const [currentMetadata] = await sourceFile.getMetadata();
+        const currentCustomMetadata = currentMetadata.metadata ?? {};
+        await sourceFile.save(orientedOriginal.buffer, {
+          contentType: orientedOriginal.contentType,
+          resumable: false,
+          metadata: {
+            ...(typeof currentMetadata.cacheControl === "string"
+              ? { cacheControl: currentMetadata.cacheControl }
+              : {}),
+            metadata: {
+              ...currentCustomMetadata,
+              [ORIENTATION_NORMALIZED_METADATA_KEY]: "true",
+              marketplaceAssetProcessingStatus: STATUS.DERIVATIVES_GENERATED,
+              marketplaceAssetSourceGeneration: generation,
+              marketplaceAssetStatusUpdatedAt: new Date().toISOString(),
+              marketplaceAssetProcessedBy: FUNCTION_NAME,
+              marketplaceAssetProcessingError: "",
+              marketplaceAssetDerivativesPathPrefix: derivativeBasePath,
+              marketplaceAssetSourceOrientation: String(orientedOriginal.sourceOrientation ?? 1),
+            },
+          },
+        });
+        originalRewritten = true;
+      } catch (rewriteError) {
+        const rewriteErrorMessage =
+          rewriteError instanceof Error ? rewriteError.message : "Unknown rewrite error";
+        logger.warn("Failed to rewrite orientation-normalized original", {
+          collectionName: parsed.collectionName,
+          designId: parsed.designId,
+          sourcePath: parsed.sourcePath,
+          errorMessage: rewriteErrorMessage,
+        });
+      }
+
       await Promise.all([
-        setOriginalMetadataStatus(sourceFile, STATUS.DERIVATIVES_GENERATED, generation, {
-          marketplaceAssetProcessingError: "",
-          marketplaceAssetDerivativesPathPrefix: derivativeBasePath,
-        }),
+        originalRewritten
+          ? Promise.resolve()
+          : setOriginalMetadataStatus(sourceFile, STATUS.DERIVATIVES_GENERATED, generation, {
+              marketplaceAssetProcessingError: "",
+              marketplaceAssetDerivativesPathPrefix: derivativeBasePath,
+            }),
         docRef.set(
           {
             marketplaceStatus: existingMarketplaceStatus,
@@ -263,6 +326,8 @@ export const processMarketplaceAssetDisplayImage = onObjectFinalized(
         sourcePath: parsed.sourcePath,
         generation,
         derivativeBasePath,
+        sourceOrientation: sourceImageMetadata.orientation ?? 1,
+        originalRewritten,
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";

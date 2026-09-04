@@ -117,7 +117,7 @@ async function commitGarmentBatches(
 }
 
 export const generateInventoryGarments = onRequest(
-  { region: REGION, invoker: "private" },
+  { region: REGION, invoker: "private", timeoutSeconds: 540, memory: "1GiB" },
   async (req, res) => {
     if (req.method !== "POST") {
       res.status(405).send("Method not allowed. Use POST.");

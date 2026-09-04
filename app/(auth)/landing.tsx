@@ -1,6 +1,8 @@
 import { useRouter } from "expo-router";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { exitAuthTo } from "../../lib/exitAuth";
+
 export default function AuthLandingScreen() {
   const router = useRouter();
 
@@ -37,7 +39,7 @@ export default function AuthLandingScreen() {
 
       <Pressable
         style={({ pressed }) => [styles.linkButton, pressed && styles.buttonPressed]}
-        onPress={() => router.push("/(tabs)/camera")}
+        onPress={() => exitAuthTo("/(tabs)/camera")}
       >
         <Text style={styles.linkButtonText}>Continue browsing without logging in</Text>
       </Pressable>

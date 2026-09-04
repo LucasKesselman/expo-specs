@@ -3,6 +3,9 @@ import admin from "firebase-admin";
 import { logger } from "firebase-functions/logger";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 
+import { extensionFromPath } from "./autoOrientImage";
+import { copyFileAutoOrientingRaster } from "./copyRasterWithAutoOrient";
+
 const REGION = "us-central1";
 const DIGITAL_DESIGNS_COLLECTION = "DigitalDesigns";
 const MARKETPLACE_ASSETS_BUCKET = "marketplace-assets-bucket";
@@ -102,18 +105,6 @@ function normalizeStagedAssetPath(value: unknown, fieldName: string, uid: string
   }
 
   return path;
-}
-
-function extensionFromPath(path: string): string {
-  const slashIndex = path.lastIndexOf("/");
-  const fileName = slashIndex >= 0 ? path.slice(slashIndex + 1) : path;
-  const dotIndex = fileName.lastIndexOf(".");
-  if (dotIndex <= 0 || dotIndex === fileName.length - 1) {
-    return "";
-  }
-
-  const extension = fileName.slice(dotIndex).toLowerCase();
-  return /^[.][a-z0-9]+$/.test(extension) ? extension : "";
 }
 
 async function createPlaceholderFile(bucketName: string, path: string): Promise<File> {
@@ -240,7 +231,7 @@ export const createDigitalDesign = onCall({ region: REGION }, async (request) =>
         designAssetPath,
       )}`,
     );
-    await designAssetSource.copy(designAssetDestination);
+    await copyFileAutoOrientingRaster(designAssetSource, designAssetDestination);
     cleanupFiles.push(designAssetDestination);
 
     logger.info("Created digital design and promoted staged assets", {

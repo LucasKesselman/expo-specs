@@ -8,6 +8,7 @@
   "scripts": {
     "build": "tsc",
     "build:watch": "tsc --watch",
+    "test": "npx --yes tsx --test test/autoOrientImage.test.ts",
     "serve": "npm run build && firebase emulators:start --only functions",
     "shell": "npm run build && firebase functions:shell",
     "deploy": "npm run build && firebase deploy --only functions",

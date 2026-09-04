@@ -2,6 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, UIManager, View } from "react-native";
 
 import {
+  fitOverlayToMarker,
+  getDesignAssetPixelSize,
+  type PixelSize,
+} from "../../lib/arOverlaySize";
+import {
   detectDesignAssetKind,
   getDesignAssetKindLabel,
   type DesignAssetMeta,
@@ -101,6 +106,34 @@ function DesignAssetContent({
 }: DesignAssetContentProps) {
   const source = { uri };
   const assetLabel = getDesignAssetKindLabel(assetMeta.kind);
+  const needsPixelSize = assetMeta.kind === "image" || assetMeta.kind === "video";
+  const [pixelSize, setPixelSize] = useState<PixelSize | null>(null);
+  const [pixelSizeResolved, setPixelSizeResolved] = useState(!needsPixelSize);
+
+  useEffect(() => {
+    if (assetMeta.kind !== "image" && assetMeta.kind !== "video") {
+      setPixelSize(null);
+      setPixelSizeResolved(true);
+      return;
+    }
+
+    const kind = assetMeta.kind;
+    let cancelled = false;
+    setPixelSizeResolved(false);
+    onStatusChange(`Measuring ${assetLabel}...`);
+    void getDesignAssetPixelSize(kind, uri).then((size) => {
+      if (cancelled) {
+        return;
+      }
+      setPixelSize(size);
+      setPixelSizeResolved(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [assetLabel, assetMeta.kind, onStatusChange, uri]);
+
   const loadHandlers = {
     onLoadStart: () => {
       onStatusChange(`Loading ${assetLabel}...`);
@@ -114,13 +147,25 @@ function DesignAssetContent({
     },
   };
 
+  if (!pixelSizeResolved) {
+    return null;
+  }
+
+  const overlay = fitOverlayToMarker(
+    markerWidthMeters,
+    markerHeightMeters,
+    pixelSize?.width,
+    pixelSize?.height,
+  );
+
   switch (assetMeta.kind) {
     case "image":
       return (
         <ViroImage
           source={source}
-          width={markerWidthMeters}
-          height={markerHeightMeters}
+          width={overlay.widthMeters}
+          height={overlay.heightMeters}
+          resizeMode="ScaleToFit"
           position={[0, 0, 0]}
           rotation={[-90, 0, 0]}
           {...loadHandlers}
@@ -130,8 +175,8 @@ function DesignAssetContent({
       return (
         <ViroVideo
           source={source}
-          width={markerWidthMeters}
-          height={markerHeightMeters}
+          width={overlay.widthMeters}
+          height={overlay.heightMeters}
           position={[0, 0, 0]}
           rotation={[-90, 0, 0]}
           loop

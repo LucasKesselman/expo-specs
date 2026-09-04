@@ -21,6 +21,7 @@ import {
 
 import { functions, storage } from "../lib/firebase";
 import { useAuth } from "../contexts/AuthContext";
+import { normalizeImageForUpload, orientationNormalizedUploadMetadata } from "../lib/normalizeImageForUpload";
 
 interface AssetSlot {
   uri: string;
@@ -28,6 +29,7 @@ interface AssetSlot {
   mimeType: string;
   width?: number;
   height?: number;
+  orientationNormalized?: boolean;
 }
 
 type AssetKey =
@@ -96,17 +98,27 @@ export default function CreatePhysicalDesignScreen() {
           mediaTypes: ["images"],
           quality: 1,
           allowsEditing: false,
+          preferredAssetRepresentationMode:
+            ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
         });
         if (result.canceled || result.assets.length === 0) return;
         const picked = result.assets[0];
+        const format = key === "marketplaceImage" ? "jpeg" : "png";
+        const normalized = await normalizeImageForUpload({
+          uri: picked.uri,
+          name: picked.fileName ?? TEMP_UPLOAD_NAMES[key],
+          mimeType: picked.mimeType ?? (format === "jpeg" ? "image/jpeg" : "image/png"),
+          format,
+        });
         setAssets((prev) => ({
           ...prev,
           [key]: {
-            uri: picked.uri,
-            name: picked.fileName ?? TEMP_UPLOAD_NAMES[key],
-            mimeType: picked.mimeType ?? "image/png",
-            width: picked.width,
-            height: picked.height,
+            uri: normalized.uri,
+            name: normalized.name,
+            mimeType: normalized.mimeType,
+            width: normalized.width,
+            height: normalized.height,
+            orientationNormalized: normalized.orientationNormalized,
           },
         }));
       } else {
@@ -180,7 +192,10 @@ export default function CreatePhysicalDesignScreen() {
         const blob = await response.blob();
         const storagePath = `${tempPrefix}/${TEMP_UPLOAD_NAMES[key]}`;
         const fileRef = ref(storage, storagePath);
-        await uploadBytes(fileRef, blob, { contentType: slot.mimeType });
+        await uploadBytes(fileRef, blob, {
+          contentType: slot.mimeType,
+          ...orientationNormalizedUploadMetadata(slot.orientationNormalized),
+        });
       }
 
       setStatusMessage("Creating PhysicalDesigns record...");
