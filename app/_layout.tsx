@@ -3,10 +3,6 @@ import { AuthProvider } from "../contexts/AuthContext";
 import { GarmentNicknamesProvider } from "../contexts/GarmentNicknamesContext";
 import { SelectedDigitalDesignProvider } from "../contexts/SelectedDigitalDesignContext";
 
-export const unstable_settings = {
-  initialRouteName: "(tabs)",
-};
-
 // Shared fallback layout for non-iOS platforms.
 // iOS-specific variant lives in: app/_layout.ios.tsx
 

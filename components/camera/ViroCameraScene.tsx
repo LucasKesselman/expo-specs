@@ -106,9 +106,9 @@ function DesignAssetContent({
 }: DesignAssetContentProps) {
   const source = { uri };
   const assetLabel = getDesignAssetKindLabel(assetMeta.kind);
-  const needsPixelSize = assetMeta.kind === "image" || assetMeta.kind === "video";
+  const waitsForPixelSize = assetMeta.kind === "image";
   const [pixelSize, setPixelSize] = useState<PixelSize | null>(null);
-  const [pixelSizeResolved, setPixelSizeResolved] = useState(!needsPixelSize);
+  const [pixelSizeResolved, setPixelSizeResolved] = useState(!waitsForPixelSize);
 
   useEffect(() => {
     if (assetMeta.kind !== "image" && assetMeta.kind !== "video") {
@@ -119,8 +119,10 @@ function DesignAssetContent({
 
     const kind = assetMeta.kind;
     let cancelled = false;
-    setPixelSizeResolved(false);
-    onStatusChange(`Measuring ${assetLabel}...`);
+    if (kind === "image") {
+      setPixelSizeResolved(false);
+      onStatusChange(`Measuring ${assetLabel}...`);
+    }
     void getDesignAssetPixelSize(kind, uri).then((size) => {
       if (cancelled) {
         return;

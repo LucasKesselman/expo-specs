@@ -1,4 +1,4 @@
-import { createVideoPlayer } from "expo-video";
+import * as VideoThumbnails from "expo-video-thumbnails";
 import { Image } from "react-native";
 
 const PIXEL_SIZE_TIMEOUT_MS = 12_000;
@@ -56,10 +56,6 @@ export function fitOverlayToMarker(
   };
 }
 
-function pixelSizeFromTrack(track: { size?: { width?: number; height?: number } } | null | undefined): PixelSize | null {
-  return toPixelSize(track?.size?.width, track?.size?.height);
-}
-
 function getImagePixelSize(uri: string): Promise<PixelSize | null> {
   return new Promise((resolve) => {
     let settled = false;
@@ -83,51 +79,19 @@ function getImagePixelSize(uri: string): Promise<PixelSize | null> {
 }
 
 async function getVideoPixelSize(uri: string): Promise<PixelSize | null> {
-  const player = createVideoPlayer(uri);
   try {
-    return await new Promise((resolve) => {
-      let settled = false;
-      const finish = (value: PixelSize | null) => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        clearTimeout(timeout);
-        sourceSub.remove();
-        statusSub.remove();
-        trackSub.remove();
-        resolve(value);
-      };
-
-      const timeout = setTimeout(() => finish(null), PIXEL_SIZE_TIMEOUT_MS);
-
-      const sourceSub = player.addListener("sourceLoad", ({ availableVideoTracks }) => {
-        const fromTracks = availableVideoTracks
-          .map((track) => pixelSizeFromTrack(track))
-          .find((size) => size != null);
-        const size = fromTracks ?? pixelSizeFromTrack(player.videoTrack);
-        if (size) {
-          finish(size);
-        }
-      });
-
-      const trackSub = player.addListener("videoTrackChange", ({ videoTrack }) => {
-        const size = pixelSizeFromTrack(videoTrack);
-        if (size) {
-          finish(size);
-        }
-      });
-
-      const statusSub = player.addListener("statusChange", ({ status }) => {
-        if (status === "error") {
-          finish(null);
-        }
-      });
-    });
+    const thumbnail = await Promise.race([
+      VideoThumbnails.getThumbnailAsync(uri, { time: 0, quality: 0.1 }).catch(() => null),
+      new Promise<null>((resolve) => {
+        setTimeout(() => resolve(null), PIXEL_SIZE_TIMEOUT_MS);
+      }),
+    ]);
+    if (!thumbnail) {
+      return null;
+    }
+    return toPixelSize(thumbnail.width, thumbnail.height);
   } catch {
     return null;
-  } finally {
-    player.release();
   }
 }
 
