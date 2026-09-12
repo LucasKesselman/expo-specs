@@ -15,6 +15,7 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "@reactvision/react-viro": "^2.54.0",
     "expo": "~54.0.37",
+    "expo-audio": "~1.1.1",
     "expo-camera": "~17.0.10",
     "expo-constants": "~18.0.14",
     "expo-dev-client": "~6.0.20",

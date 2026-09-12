@@ -2,6 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, UIManager, View } from "react-native";
 
 import {
+  enableArPlaybackAudio,
+  restoreDefaultAudioMode,
+  setArRecordingAudioAllowed,
+} from "../../lib/arAudioSession";
+import {
   fitOverlayToMarker,
   getDesignAssetPixelSize,
   type PixelSize,
@@ -223,6 +228,14 @@ export function ViroCameraScene({ designAssetUri, onRescan }: ViroCameraScenePro
     }
   }, [assetMeta.kind, assetMeta.extension, designAssetUri]);
 
+  useEffect(() => {
+    void enableArPlaybackAudio();
+
+    return () => {
+      void restoreDefaultAudioMode();
+    };
+  }, []);
+
   const getNavigatorHandle = useCallback(() => {
     const ref = arNavigatorRef.current;
     return ref?.sceneNavigator ?? ref;
@@ -381,18 +394,22 @@ export function ViroCameraScene({ designAssetUri, onRescan }: ViroCameraScenePro
 
     setIsBusy(true);
     setStatusText("Starting video...");
+    // The recorder captures microphone audio, which the playback-only session forbids.
+    await setArRecordingAudioAllowed(true);
     try {
       navigator.startVideoRecording(
         buildCaptureName("ar-video"),
         true,
         (errorCode: number) => {
           setIsRecording(false);
+          void setArRecordingAudioAllowed(false);
           setStatusText(getErrorMessage("Recording failed", errorCode));
         },
       );
       setIsRecording(true);
       setStatusText("Recording... release to stop.");
     } catch (error) {
+      void setArRecordingAudioAllowed(false);
       const message = error instanceof Error ? error.message : "Unexpected recording error.";
       setStatusText(`Recording failed: ${message}`);
     } finally {
@@ -406,6 +423,7 @@ export function ViroCameraScene({ designAssetUri, onRescan }: ViroCameraScenePro
     }
     const navigator = getNavigatorHandle();
     if (!navigator?.stopVideoRecording) {
+      void setArRecordingAudioAllowed(false);
       setIsRecording(false);
       setStatusText("Unable to stop video: recorder is unavailable.");
       return;
@@ -424,6 +442,7 @@ export function ViroCameraScene({ designAssetUri, onRescan }: ViroCameraScenePro
       const message = error instanceof Error ? error.message : "Unexpected stop-recording error.";
       setStatusText(`Failed to finish video: ${message}`);
     } finally {
+      void setArRecordingAudioAllowed(false);
       setIsRecording(false);
       setIsBusy(false);
       setTimeout(() => {

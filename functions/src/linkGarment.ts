@@ -5,6 +5,7 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 const REGION = "us-central1";
 const GARMENTS_COLLECTION = "Garments";
 const USERS_COLLECTION = "Users";
+const OWNED_SHIPPED_STATUS = "OWNED";
 
 interface LinkGarmentRequest {
   garmentId: unknown;
@@ -66,9 +67,12 @@ export const linkGarment = onCall({ region: REGION }, async (request) => {
         throw new HttpsError("failed-precondition", "Garment already has an owner.");
       }
 
+      const now = admin.firestore.FieldValue.serverTimestamp();
       transaction.update(garmentRef, {
         owner: uid,
-        lastUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        shippedStatus: OWNED_SHIPPED_STATUS,
+        shippedUpdate: now,
+        lastUpdatedAt: now,
       });
 
       transaction.set(
