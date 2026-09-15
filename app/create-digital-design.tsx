@@ -59,6 +59,7 @@ interface AssetSlot {
 }
 
 type MarketplaceStatus = "PUBLIC" | "PRIVATE";
+type AssetQuality = "normal" | "low-res";
 
 function isImageMimeType(mimeType: string | undefined): boolean {
   return typeof mimeType === "string" && mimeType.toLowerCase().startsWith("image/");
@@ -276,6 +277,7 @@ export default function CreateDigitalDesignScreen() {
   const [version, setVersion] = useState("");
   const [designAsset, setDesignAsset] = useState<AssetSlot | null>(null);
   const [previewStill, setPreviewStill] = useState<AssetSlot | null>(null);
+  const [assetQuality, setAssetQuality] = useState<AssetQuality>("normal");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
@@ -556,6 +558,7 @@ export default function CreateDigitalDesignScreen() {
           version: string;
           previewImagePath: string;
           designAssetPath: string;
+          assetQuality: AssetQuality;
         },
         { designId: string }
       >(functions, "createDigitalDesign");
@@ -569,6 +572,7 @@ export default function CreateDigitalDesignScreen() {
         version: isPublic ? version.trim() : "",
         previewImagePath,
         designAssetPath,
+        assetQuality,
       });
 
       setStatusMessage(null);
@@ -581,6 +585,7 @@ export default function CreateDigitalDesignScreen() {
       setVersion("");
       setDesignAsset(null);
       setPreviewStill(null);
+      setAssetQuality("normal");
     } catch (error) {
       setStatusMessage(null);
       const message = error instanceof Error ? error.message : "An unexpected error occurred.";
@@ -604,6 +609,7 @@ export default function CreateDigitalDesignScreen() {
     parsedPriceAmount,
     marketplaceStatus,
     version,
+    assetQuality,
   ]);
 
   if (loading || !user) {
@@ -783,6 +789,38 @@ export default function CreateDigitalDesignScreen() {
             </Text>
           </View>
         ) : null}
+
+        <Text style={styles.label}>Image Quality</Text>
+        <View style={styles.statusChoiceRow}>
+          {(
+            [
+              { value: "normal", label: "Normal" },
+              { value: "low-res", label: "Low-res" },
+            ] as { value: AssetQuality; label: string }[]
+          ).map((qualityOption) => {
+            const selected = qualityOption.value === assetQuality;
+            return (
+              <Pressable
+                key={qualityOption.value}
+                style={({ pressed }) => [
+                  styles.statusChoice,
+                  selected && styles.statusChoiceSelected,
+                  pressed && styles.statusChoicePressed,
+                ]}
+                onPress={() => setAssetQuality(qualityOption.value)}
+                disabled={isSubmitting}
+              >
+                <Text style={[styles.statusChoiceText, selected && styles.statusChoiceTextSelected]}>
+                  {qualityOption.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <Text style={styles.helpText}>
+          Normal scales the AR overlay larger than the tracking marker. Low-res keeps the overlay
+          sized to the marker.
+        </Text>
 
         {statusMessage ? (
           <View style={styles.statusRow}>

@@ -29,6 +29,7 @@ export default function CameraTabScreen() {
   const [phase, setPhase] = useState<CameraPhase>("scan");
   const [statusText, setStatusText] = useState("Scan a garment QR code.");
   const [designAssetUri, setDesignAssetUri] = useState<string | null>(null);
+  const [assetQuality, setAssetQuality] = useState<string | null>(null);
   const [sceneInstanceKey, setSceneInstanceKey] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -42,6 +43,7 @@ export default function CameraTabScreen() {
     lastScanAtRef.current = 0;
     isHandlingScanRef.current = false;
     setDesignAssetUri(null);
+    setAssetQuality(null);
     setErrorMessage(null);
     setStatusText("Scan a garment QR code.");
     setPhase("scan");
@@ -127,6 +129,7 @@ export default function CameraTabScreen() {
           return;
         }
         setDesignAssetUri(assetUrl);
+        setAssetQuality(garmentResult.design.assetQuality);
         setSceneInstanceKey((previous) => previous + 1);
         setStatusText("AR ready.");
         setPhase("ar");
@@ -188,6 +191,7 @@ export default function CameraTabScreen() {
       <ViroCameraScene
         key={`viro-camera-${sceneInstanceKey}-${designAssetUri}`}
         designAssetUri={designAssetUri}
+        assetQuality={assetQuality}
         onRescan={handleRescan}
       />
     );

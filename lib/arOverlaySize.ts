@@ -2,6 +2,8 @@ import * as VideoThumbnails from "expo-video-thumbnails";
 import { Image } from "react-native";
 
 const PIXEL_SIZE_TIMEOUT_MS = 12_000;
+const INCH_IN_METERS = 0.0254;
+const NORMAL_VERTICAL_Y_OFFSET_METERS = -3 * INCH_IN_METERS;
 
 export type PixelSize = {
   width: number;
@@ -28,18 +30,49 @@ export function toPixelSize(width?: number | null, height?: number | null): Pixe
 /**
  * Size an AR overlay so it fits entirely on the tracking marker without
  * stretching. Portrait assets stay portrait; landscape assets stay landscape.
+ * Normal-quality assets are then scaled up from that contained size.
  */
 export function fitOverlayToMarker(
   markerWidthMeters: number,
   markerHeightMeters: number,
   assetWidthPx?: number | null,
   assetHeightPx?: number | null,
+  assetQuality?: string | null,
 ): { widthMeters: number; heightMeters: number } {
   const pixelSize = toPixelSize(assetWidthPx, assetHeightPx);
-  if (!pixelSize) {
-    return { widthMeters: markerWidthMeters, heightMeters: markerHeightMeters };
+  const contained = pixelSize
+    ? containOverlayInMarker(markerWidthMeters, markerHeightMeters, pixelSize)
+    : { widthMeters: markerWidthMeters, heightMeters: markerHeightMeters };
+
+  if (assetQuality !== "normal" || !pixelSize) {
+    return contained;
   }
 
+  const scale = pixelSize.height > pixelSize.width ? 2 : 1.5;
+  return {
+    widthMeters: contained.widthMeters * scale,
+    heightMeters: contained.heightMeters * scale,
+  };
+}
+
+export function overlayAnchorPosition(
+  assetWidthPx?: number | null,
+  assetHeightPx?: number | null,
+  assetQuality?: string | null,
+): [number, number, number] {
+  const pixelSize = toPixelSize(assetWidthPx, assetHeightPx);
+  if (assetQuality === "normal" && pixelSize && pixelSize.height > pixelSize.width) {
+    return [0, NORMAL_VERTICAL_Y_OFFSET_METERS, 0];
+  }
+
+  return [0, 0, 0];
+}
+
+function containOverlayInMarker(
+  markerWidthMeters: number,
+  markerHeightMeters: number,
+  pixelSize: PixelSize,
+): { widthMeters: number; heightMeters: number } {
   const assetAspect = pixelSize.width / pixelSize.height;
   const markerAspect = markerWidthMeters / markerHeightMeters;
 

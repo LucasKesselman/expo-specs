@@ -102,6 +102,7 @@ function getInitialDesignFromParams(
     marketplaceStatus: null,
     author: null,
     authorFullName: getParamAsString(params.authorFullName) || null,
+    assetQuality: null,
   };
 }
 

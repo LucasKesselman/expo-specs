@@ -12,6 +12,7 @@ const MARKETPLACE_ASSETS_BUCKET = "marketplace-assets-bucket";
 const AR_ASSETS_BUCKET = "ar-assets-bucket";
 
 type MarketplaceStatus = "PUBLIC" | "PRIVATE";
+type AssetQuality = "normal" | "low-res";
 
 interface CreateDigitalDesignRequest {
   name: unknown;
@@ -22,6 +23,7 @@ interface CreateDigitalDesignRequest {
   version: unknown;
   previewImagePath: unknown;
   designAssetPath: unknown;
+  assetQuality: unknown;
 }
 
 function normalizeRequiredString(value: unknown, fieldName: string): string {
@@ -85,6 +87,14 @@ function normalizePriceAmount(value: unknown): number {
 function normalizeMarketplaceStatus(value: unknown): MarketplaceStatus {
   if (value !== "PUBLIC" && value !== "PRIVATE") {
     throw new HttpsError("invalid-argument", "marketplaceStatus must be PUBLIC or PRIVATE.");
+  }
+
+  return value;
+}
+
+function normalizeAssetQuality(value: unknown): AssetQuality {
+  if (value !== "normal" && value !== "low-res") {
+    throw new HttpsError("invalid-argument", 'assetQuality must be "normal" or "low-res".');
   }
 
   return value;
@@ -159,6 +169,7 @@ export const createDigitalDesign = onCall({ region: REGION }, async (request) =>
     uid,
   );
   const designAssetPath = normalizeStagedAssetPath(requestData.designAssetPath, "designAssetPath", uid);
+  const assetQuality = normalizeAssetQuality(requestData.assetQuality);
 
   const authTokenName = request.auth?.token?.name;
   const authorFullName = typeof authTokenName === "string" ? authTokenName.trim() : "";
@@ -187,6 +198,7 @@ export const createDigitalDesign = onCall({ region: REGION }, async (request) =>
     marketplaceCardImageURL: "",
     marketplaceImageProcessingStatus: "PENDING_ORIGINAL_UPLOAD",
     version,
+    assetQuality,
   });
 
   await db.collection("Users").doc(uid).set(

@@ -88,6 +88,7 @@ function getInitialDesignFromParams(
     priceAmount: 0,
     tags: [],
     version: "",
+    assetQuality: null,
   };
 }
 

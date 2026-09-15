@@ -9,6 +9,7 @@ import {
 import {
   fitOverlayToMarker,
   getDesignAssetPixelSize,
+  overlayAnchorPosition,
   type PixelSize,
 } from "../../lib/arOverlaySize";
 import {
@@ -93,6 +94,7 @@ type DesignAssetContentProps = {
   uri: string;
   markerWidthMeters: number;
   markerHeightMeters: number;
+  assetQuality?: string | null;
   Viro3DObject: any;
   ViroImage: any;
   ViroVideo: any;
@@ -104,6 +106,7 @@ function DesignAssetContent({
   uri,
   markerWidthMeters,
   markerHeightMeters,
+  assetQuality,
   Viro3DObject,
   ViroImage,
   ViroVideo,
@@ -111,7 +114,7 @@ function DesignAssetContent({
 }: DesignAssetContentProps) {
   const source = { uri };
   const assetLabel = getDesignAssetKindLabel(assetMeta.kind);
-  const waitsForPixelSize = assetMeta.kind === "image";
+  const waitsForPixelSize = assetMeta.kind === "image" || assetMeta.kind === "video";
   const [pixelSize, setPixelSize] = useState<PixelSize | null>(null);
   const [pixelSizeResolved, setPixelSizeResolved] = useState(!waitsForPixelSize);
 
@@ -124,10 +127,8 @@ function DesignAssetContent({
 
     const kind = assetMeta.kind;
     let cancelled = false;
-    if (kind === "image") {
-      setPixelSizeResolved(false);
-      onStatusChange(`Measuring ${assetLabel}...`);
-    }
+    setPixelSizeResolved(false);
+    onStatusChange(`Measuring ${assetLabel}...`);
     void getDesignAssetPixelSize(kind, uri).then((size) => {
       if (cancelled) {
         return;
@@ -163,7 +164,9 @@ function DesignAssetContent({
     markerHeightMeters,
     pixelSize?.width,
     pixelSize?.height,
+    assetQuality,
   );
+  const position = overlayAnchorPosition(pixelSize?.width, pixelSize?.height, assetQuality);
 
   switch (assetMeta.kind) {
     case "image":
@@ -173,7 +176,7 @@ function DesignAssetContent({
           width={overlay.widthMeters}
           height={overlay.heightMeters}
           resizeMode="ScaleToFit"
-          position={[0, 0, 0]}
+          position={position}
           rotation={[-90, 0, 0]}
           {...loadHandlers}
         />
@@ -184,7 +187,7 @@ function DesignAssetContent({
           source={source}
           width={overlay.widthMeters}
           height={overlay.heightMeters}
-          position={[0, 0, 0]}
+          position={position}
           rotation={[-90, 0, 0]}
           loop
           muted={false}
@@ -209,10 +212,11 @@ function DesignAssetContent({
 
 export type ViroCameraSceneProps = {
   designAssetUri: string;
+  assetQuality?: string | null;
   onRescan?: () => void;
 };
 
-export function ViroCameraScene({ designAssetUri, onRescan }: ViroCameraSceneProps) {
+export function ViroCameraScene({ designAssetUri, assetQuality, onRescan }: ViroCameraSceneProps) {
   const arNavigatorRef = useRef<any>(null);
   const suppressNextPressRef = useRef(false);
   const [isBusy, setIsBusy] = useState(false);
@@ -335,6 +339,7 @@ export function ViroCameraScene({ designAssetUri, onRescan }: ViroCameraScenePro
               uri={designAssetUri}
               markerWidthMeters={target.physicalWidthMeters}
               markerHeightMeters={target.physicalHeightMeters}
+              assetQuality={assetQuality}
               Viro3DObject={Viro3DObject}
               ViroImage={ViroImage}
               ViroVideo={ViroVideo}

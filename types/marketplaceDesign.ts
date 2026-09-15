@@ -1,5 +1,7 @@
 import type { DocumentData, DocumentSnapshot, QueryDocumentSnapshot } from "firebase/firestore";
 
+export type AssetQuality = "normal" | "low-res";
+
 export interface MarketplaceDesign {
   sourceDocId: string;
   sourceCollection: string;
@@ -19,6 +21,7 @@ export interface MarketplaceDesign {
   marketplaceStatus: string | null;
   author: string | null;
   authorFullName: string | null;
+  assetQuality: AssetQuality | null;
 }
 
 function formatPrice(value: unknown): string {
@@ -64,6 +67,13 @@ function normalizeTags(value: unknown): string[] {
     }
   }
   return tags;
+}
+
+function normalizeAssetQuality(value: unknown): AssetQuality | null {
+  if (value === "normal" || value === "low-res") {
+    return value;
+  }
+  return null;
 }
 
 function formatCreatedAt(value: unknown): string {
@@ -144,5 +154,6 @@ export function mapFirestoreDocToMarketplaceDesign(
     marketplaceStatus: firstValidString([data.marketplaceStatus]),
     author: firstValidString([data.author]),
     authorFullName: firstValidString([data.authorFullName]),
+    assetQuality: normalizeAssetQuality(data.assetQuality),
   };
 }
