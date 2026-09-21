@@ -130,7 +130,6 @@ export default function CameraTabScreen() {
         }
         setDesignAssetUri(assetUrl);
         setAssetQuality(garmentResult.design.assetQuality);
-        setSceneInstanceKey((previous) => previous + 1);
         setStatusText("AR ready.");
         setPhase("ar");
       } catch (error) {
@@ -186,12 +185,13 @@ export default function CameraTabScreen() {
     );
   }
 
-  if (phase === "ar" && designAssetUri) {
+  if (phase === "resolving" || phase === "ar") {
     return (
       <ViroCameraScene
-        key={`viro-camera-${sceneInstanceKey}-${designAssetUri}`}
+        key={`viro-camera-${sceneInstanceKey}`}
         designAssetUri={designAssetUri}
         assetQuality={assetQuality}
+        preparingStatus={phase === "resolving" ? statusText : null}
         onRescan={handleRescan}
       />
     );
@@ -203,12 +203,11 @@ export default function CameraTabScreen() {
         style={StyleSheet.absoluteFill}
         facing="back"
         barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-        onBarcodeScanned={phase === "scan" ? (result) => void handleBarcodeScanned(result) : undefined}
+        onBarcodeScanned={(result) => void handleBarcodeScanned(result)}
       />
       <View pointerEvents="box-none" style={styles.overlay}>
         <View style={styles.scanFrame} />
         <View style={styles.bottomPanel}>
-          {phase === "resolving" ? <ActivityIndicator color="#F9FAFB" /> : null}
           <Text style={styles.statusText}>{statusText}</Text>
           {errorMessage && phase === "scan" ? (
             <Text style={styles.errorText}>{errorMessage}</Text>

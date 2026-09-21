@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Image, Platform, Pressable, StyleSheet, Text, UIManager, View } from "react-native";
+import {
+  ActivityIndicator,
+  Image,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  UIManager,
+  View,
+} from "react-native";
 
 import {
   enableArPlaybackAudio,
@@ -210,27 +219,92 @@ function DesignAssetContent({
   }
 }
 
-export type ViroCameraSceneProps = {
-  designAssetUri: string;
+type MarkerSceneAppProps = {
+  designAssetUri: string | null;
   assetQuality?: string | null;
+  ViroARScene: any;
+  ViroARImageMarker: any;
+  ViroAmbientLight: any;
+  Viro3DObject: any;
+  ViroImage: any;
+  ViroVideo: any;
+  onStatusChange: (message: string) => void;
+};
+
+function MarkerScene(props: { arSceneNavigator?: { viroAppProps?: MarkerSceneAppProps } }) {
+  const appProps = props.arSceneNavigator?.viroAppProps;
+  if (!appProps?.ViroARScene) {
+    return null;
+  }
+
+  const {
+    designAssetUri,
+    assetQuality,
+    ViroARScene,
+    ViroARImageMarker,
+    ViroAmbientLight,
+    Viro3DObject,
+    ViroImage,
+    ViroVideo,
+    onStatusChange,
+  } = appProps;
+  const assetMeta = designAssetUri ? detectDesignAssetKind(designAssetUri) : null;
+
+  return (
+    <ViroARScene>
+      <ViroAmbientLight color="#FFFFFF" intensity={800} />
+      {ARTIE_TARGET_IMAGES.map((target) => (
+        <ViroARImageMarker key={target.id} target={target.id}>
+          {designAssetUri && assetMeta && assetMeta.kind !== "unsupported" ? (
+            <DesignAssetContent
+              assetMeta={assetMeta}
+              uri={designAssetUri}
+              markerWidthMeters={target.physicalWidthMeters}
+              markerHeightMeters={target.physicalHeightMeters}
+              assetQuality={assetQuality}
+              Viro3DObject={Viro3DObject}
+              ViroImage={ViroImage}
+              ViroVideo={ViroVideo}
+              onStatusChange={onStatusChange}
+            />
+          ) : null}
+        </ViroARImageMarker>
+      ))}
+    </ViroARScene>
+  );
+}
+
+export type ViroCameraSceneProps = {
+  designAssetUri: string | null;
+  assetQuality?: string | null;
+  preparingStatus?: string | null;
   onRescan?: () => void;
 };
 
-export function ViroCameraScene({ designAssetUri, assetQuality, onRescan }: ViroCameraSceneProps) {
+export function ViroCameraScene({
+  designAssetUri,
+  assetQuality,
+  preparingStatus,
+  onRescan,
+}: ViroCameraSceneProps) {
   const arNavigatorRef = useRef<any>(null);
   const suppressNextPressRef = useRef(false);
   const [isBusy, setIsBusy] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const assetMeta = detectDesignAssetKind(designAssetUri);
   const [statusText, setStatusText] = useState("Tap for photo. Hold for video.");
+  const isPreparing = Boolean(preparingStatus);
 
   useEffect(() => {
+    if (!designAssetUri) {
+      return;
+    }
+    const assetMeta = detectDesignAssetKind(designAssetUri);
     if (assetMeta.kind === "unsupported") {
       setStatusText(getUnsupportedAssetMessage(assetMeta));
     } else {
       setStatusText("Tap for photo. Hold for video.");
     }
-  }, [assetMeta.kind, assetMeta.extension, designAssetUri]);
+  }, [designAssetUri]);
 
   useEffect(() => {
     void enableArPlaybackAudio();
@@ -327,29 +401,6 @@ export function ViroCameraScene({ designAssetUri, assetQuality, onRescan }: Viro
 
     hasRegisteredMarkerAssets = true;
   }
-
-  const MarkerScene = () => (
-    <ViroARScene>
-      <ViroAmbientLight color="#FFFFFF" intensity={800} />
-      {ARTIE_TARGET_IMAGES.map((target) => (
-        <ViroARImageMarker key={target.id} target={target.id}>
-          {assetMeta.kind !== "unsupported" ? (
-            <DesignAssetContent
-              assetMeta={assetMeta}
-              uri={designAssetUri}
-              markerWidthMeters={target.physicalWidthMeters}
-              markerHeightMeters={target.physicalHeightMeters}
-              assetQuality={assetQuality}
-              Viro3DObject={Viro3DObject}
-              ViroImage={ViroImage}
-              ViroVideo={ViroVideo}
-              onStatusChange={setStatusText}
-            />
-          ) : null}
-        </ViroARImageMarker>
-      ))}
-    </ViroARScene>
-  );
 
   const handleScreenshotPress = useCallback(async () => {
     if (suppressNextPressRef.current) {
@@ -474,11 +525,23 @@ export function ViroCameraScene({ designAssetUri, assetQuality, onRescan }: Viro
         ref={arNavigatorRef}
         autofocus
         initialScene={{ scene: MarkerScene }}
+        viroAppProps={{
+          designAssetUri,
+          assetQuality,
+          ViroARScene,
+          ViroARImageMarker,
+          ViroAmbientLight,
+          Viro3DObject,
+          ViroImage,
+          ViroVideo,
+          onStatusChange: setStatusText,
+        }}
         style={styles.navigator}
       />
       <View pointerEvents="box-none" style={styles.overlay}>
         <View style={styles.bottomPanel}>
-          <Text style={styles.statusText}>{statusText}</Text>
+          {isPreparing ? <ActivityIndicator color="#F9FAFB" /> : null}
+          <Text style={styles.statusText}>{isPreparing ? preparingStatus : statusText}</Text>
           {onRescan ? (
             <Pressable
               accessibilityRole="button"
@@ -488,25 +551,27 @@ export function ViroCameraScene({ designAssetUri, assetQuality, onRescan }: Viro
               <Text style={styles.rescanButtonText}>Rescan QR</Text>
             </Pressable>
           ) : null}
-          <Pressable
-            accessibilityRole="button"
-            disabled={isBusy}
-            onLongPress={handleStartRecording}
-            onPress={handleScreenshotPress}
-            onPressOut={handleCapturePressOut}
-            style={({ pressed }) => [
-              styles.captureButtonOuter,
-              isRecording && styles.captureButtonOuterRecording,
-              (pressed || isBusy) && styles.captureButtonOuterPressed,
-            ]}
-          >
-            <View
-              style={[
-                styles.captureButtonInner,
-                isRecording && styles.captureButtonInnerRecording,
+          {isPreparing ? null : (
+            <Pressable
+              accessibilityRole="button"
+              disabled={isBusy}
+              onLongPress={handleStartRecording}
+              onPress={handleScreenshotPress}
+              onPressOut={handleCapturePressOut}
+              style={({ pressed }) => [
+                styles.captureButtonOuter,
+                isRecording && styles.captureButtonOuterRecording,
+                (pressed || isBusy) && styles.captureButtonOuterPressed,
               ]}
-            />
-          </Pressable>
+            >
+              <View
+                style={[
+                  styles.captureButtonInner,
+                  isRecording && styles.captureButtonInnerRecording,
+                ]}
+              />
+            </Pressable>
+          )}
         </View>
       </View>
     </View>
